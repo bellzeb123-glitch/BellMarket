@@ -85,9 +85,14 @@ public class ShopGUI implements Listener {
     private static final int SLOT_PAGE_INFO   = 49;
     private static final int SLOT_NEXT_PAGE   = 53;
 
-    // Main menu: 3 rows (27 slots)
-    private static final int MAIN_ROWS        = 3;
-    private static final int MAIN_SIZE        = MAIN_ROWS * 9; // 27
+    // Main menu: 6 rows (54 slots)
+    // Row 0 (0-8):   Top bar — balance, buy currency, decorations
+    // Row 1-4 (9-44): Categories (36 slots = 4 rows x 9)
+    // Row 5 (45-53): Bottom bar — decorations
+    private static final int MAIN_ROWS         = 6;
+    private static final int MAIN_SIZE         = MAIN_ROWS * 9; // 54
+    private static final int MAIN_CAT_START    = 9;
+    private static final int MAIN_CAT_END      = 44;
     private static final int MAIN_BUY_CURRENCY = 8;
     private static final int MAIN_BALANCE      = 4;
 
@@ -110,23 +115,20 @@ public class ShopGUI implements Listener {
         Inventory inv = Bukkit.createInventory(holder, MAIN_SIZE, colorize(title));
         holder.setInventory(inv);
 
-        // Fill background
+        // Tło
         fillBackground(inv, MAIN_SIZE);
 
-        // Place categories starting from slot 0, skip slot 4 (balance) and 8 (buy currency)
-        int slot = 0;
+        // Rząd 0 — stałe elementy (nie można tu wstawiać kategorii)
+        inv.setItem(MAIN_BALANCE, buildBalanceButton(player));
+        inv.setItem(MAIN_BUY_CURRENCY, buildBuyCurrencyButton());
+
+        // Rzędy 1-4 — kategorie (sloty 9-44)
+        int slot = MAIN_CAT_START;
         for (Category cat : categories) {
-            if (slot == MAIN_BALANCE || slot == MAIN_BUY_CURRENCY) slot++;
-            if (slot >= MAIN_SIZE) break;
+            if (slot > MAIN_CAT_END) break;
             inv.setItem(slot, cat.buildIcon(false));
             slot++;
         }
-
-        // Balance button
-        inv.setItem(MAIN_BALANCE, buildBalanceButton(player));
-
-        // Buy currency button
-        inv.setItem(MAIN_BUY_CURRENCY, buildBuyCurrencyButton());
 
         playSound(player, "shop-open", Sound.UI_BUTTON_CLICK);
         player.openInventory(inv);
@@ -268,23 +270,20 @@ public class ShopGUI implements Listener {
     // ── Click handlers ────────────────────────────────────────
 
     private void handleMainMenuClick(Player player, int slot, Inventory inv) {
-        // Buy currency button
-        if (slot == MAIN_BUY_CURRENCY) {
-            sendPremiumUrl(player);
+        // Rząd 0 — stałe elementy
+        if (slot < 9) {
+            if (slot == MAIN_BUY_CURRENCY) sendPremiumUrl(player);
             return;
         }
 
-        // Category click — find which category is in this slot
-        List<Category> categories = plugin.getCategories().getCategories();
-        int catSlot = 0;
-        for (int i = 0; i < categories.size(); i++) {
-            if (catSlot == MAIN_BALANCE || catSlot == MAIN_BUY_CURRENCY) catSlot++;
-            if (catSlot == slot) {
+        // Rzędy 1-4 — kategorie
+        if (slot >= MAIN_CAT_START && slot <= MAIN_CAT_END) {
+            List<Category> categories = plugin.getCategories().getCategories();
+            int index = slot - MAIN_CAT_START;
+            if (index >= 0 && index < categories.size()) {
                 playSound(player, "navigate", Sound.UI_BUTTON_CLICK);
-                openCategory(player, categories.get(i).getId(), 0);
-                return;
+                openCategory(player, categories.get(index).getId(), 0);
             }
-            catSlot++;
         }
     }
 
