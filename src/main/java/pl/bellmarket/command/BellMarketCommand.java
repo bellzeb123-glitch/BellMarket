@@ -60,7 +60,10 @@ public class BellMarketCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    public AdminGUI getAdminGUI() { return adminGUI; }(CommandSender sender, Command command, String label, String[] args) {
+    public AdminGUI getAdminGUI() { return adminGUI; }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String label, String[] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1 && sender.hasPermission("bellmarket.admin")) {
             completions.addAll(List.of("admin", "reload"));
