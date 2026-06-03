@@ -1,3 +1,8 @@
+/*
+ * BellMarket - Premium Shop Plugin
+ * Copyright (c) 2026 BellMarket. All rights reserved.
+ * Unauthorized copying, modification or distribution is prohibited.
+ */
 package pl.bellmarket;
 
 import org.bukkit.plugin.java.JavaPlugin;
@@ -29,8 +34,9 @@ public class BellMarket extends JavaPlugin {
         saveDefaultConfig();
         saveResource("lang/en.yml", false);
         saveResource("lang/pl.yml", false);
-        saveResource("categories/01_bronze.yml", false);
-        saveResource("categories/06_mounts.yml", false);
+        saveResource("categories/00_tokens.yml", false);
+        saveResource("categories/07_mounts.yml", false);
+        saveResource("categories/08_custom.yml", false);
 
         // Initialize managers
         langManager      = new LangManager(this);
