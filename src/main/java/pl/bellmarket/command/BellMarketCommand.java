@@ -1,4 +1,4 @@
--e /*
+/*
  * BellMarket - Premium Shop Plugin
  * Copyright (c) 2026 BellMarket. All rights reserved.
  * Unauthorized copying, modification or distribution is prohibited.
