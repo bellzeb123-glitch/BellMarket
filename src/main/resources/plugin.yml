@@ -1,0 +1,42 @@
+name: BellMarket
+version: 1.0.0
+main: pl.bellmarket.BellMarket
+api-version: "26.1.2"
+description: Premium item shop with BellCoins currency system
+authors: [BellMarket]
+
+commands:
+  bellmarket:
+    description: Opens the BellMarket shop
+    usage: /bellmarket [admin]
+    aliases: [bm, shop]
+  bellcoins:
+    description: Manage BellCoins currency
+    usage: /bellcoins <balance|give|take|set|top> [player] [amount]
+    aliases: [bc, coins]
+
+permissions:
+  bellmarket.shop:
+    description: Allows opening the shop
+    default: true
+  bellmarket.admin:
+    description: Allows admin commands and panel
+    default: op
+  bellmarket.coins.balance:
+    description: Check own balance
+    default: true
+  bellmarket.coins.balance.others:
+    description: Check other players balance
+    default: op
+  bellmarket.coins.give:
+    description: Give coins to players
+    default: op
+  bellmarket.coins.take:
+    description: Take coins from players
+    default: op
+  bellmarket.coins.set:
+    description: Set player coins
+    default: op
+  bellmarket.coins.top:
+    description: View coins leaderboard
+    default: true

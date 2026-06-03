@@ -1,0 +1,70 @@
+# ================================================================
+#  BellMarket - English Language File
+# ================================================================
+
+# General
+prefix: "&8[&6BellMarket&8] &r"
+no-permission: "&cYou don't have permission to do this."
+player-not-found: "&cPlayer &e{player}&c not found."
+invalid-amount: "&cInvalid amount. Please enter a positive number."
+player-only: "&cThis command can only be used by players."
+
+# Currency messages
+currency:
+  balance: "&7Your balance: &6{symbol}{amount} {currency}"
+  balance-other: "&7Balance of &e{player}&7: &6{symbol}{amount} {currency}"
+  given: "&aGiven &6{symbol}{amount} {currency}&a to &e{player}&a."
+  taken: "&cTaken &6{symbol}{amount} {currency}&c from &e{player}&c."
+  set: "&aSet balance of &e{player}&a to &6{symbol}{amount} {currency}&a."
+  received: "&aYou received &6{symbol}{amount} {currency}&a!"
+  removed: "&cYou lost &6{symbol}{amount} {currency}&c."
+  not-enough: "&cYou don't have enough {currency}! You need &6{symbol}{required}&c but have &6{symbol}{balance}&c."
+  top-header: "&6&l=== Top {currency} Holders ==="
+  top-entry: "&7{rank}. &e{player}&7: &6{symbol}{amount}"
+
+# Shop messages
+shop:
+  opened: "&aOpening &6BellMarket&a..."
+  purchase-success: "&aPurchase successful! You bought &e{product}&a for &6{symbol}{price} {currency}&a."
+  purchase-failed: "&cPurchase failed. Please try again."
+  not-enough-currency: "&cYou need &6{symbol}{price} {currency}&c to buy this. Your balance: &6{symbol}{balance}&c."
+  buy-currency: "&eClick to visit the store and buy more {currency}!"
+  buy-currency-url: "&7Store: &b{url}"
+  item-given: "&aYou received: &e{item}&a!"
+  command-executed: "&aPurchase complete!"
+  category-back: "&7Click to go back"
+  page-next: "&7Next page →"
+  page-prev: "&7← Previous page"
+  page-info: "&7Page {current}/{total}"
+  out-of-stock: "&cThis item is currently unavailable."
+  confirm-title: "&8Confirm Purchase"
+  confirm-yes: "&aConfirm"
+  confirm-no: "&cCancel"
+  confirm-info: "&7Buy &e{product}&7 for &6{symbol}{price}?"
+
+# Admin messages
+admin:
+  reloaded: "&aBellMarket reloaded successfully."
+  panel-opened: "&aOpening admin panel..."
+  balance-set: "&aBalance updated."
+  coins-added: "&aCoins added successfully."
+  coins-removed: "&aCoins removed successfully."
+  purchase-log: "[BellMarket] {player} bought {product} for {price} {currency}"
+
+# GUI item names
+gui:
+  currency-button: "&6✦ Buy {currency}"
+  currency-button-lore:
+    - "&7Click to open the store"
+    - "&7and purchase more {currency}."
+    - ""
+    - "&eLeft-click &7to open link in chat"
+  back-button: "&7← Back"
+  next-page: "&7Next Page →"
+  prev-page: "&7← Previous Page"
+  close-button: "&cClose"
+  admin-panel: "&c⚙ Admin Panel"
+  your-balance: "&6Your Balance"
+  your-balance-lore:
+    - "&7{symbol}{amount} {currency}"
+  cancel-button: "&cCancel"

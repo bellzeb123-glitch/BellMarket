@@ -1,0 +1,134 @@
+# ================================================================
+#  BellMarket - Category: Bronze Skins
+#  Filename: 01_bronze.yml
+# ================================================================
+
+# Category display settings
+category:
+  # Name shown in main menu and GUI title
+  name: "&6Bronze Skins"
+  # Short name for GUI title
+  display-name: "&6Bronze"
+  # Icon shown in main menu
+  icon:
+    material: ORANGE_STAINED_GLASS_PANE
+    name: "&6Bronze Skins"
+    lore:
+      - "&7Browse Bronze tier skins"
+      - ""
+      - "&eClick to open"
+  # Sort order in main menu (lower = shown first)
+  order: 1
+  # Whether this category is enabled
+  enabled: true
+
+# Products in this category
+# Product types:
+#   SKIN_TOKEN  - gives a SkinStudio skin token (requires SkinStudio plugin)
+#   ITEM        - gives a specific item
+#   COMMAND     - executes one or more commands
+#   MOUNT       - gives a mount (via command)
+products:
+
+  bronze_sword_skin:
+    type: SKIN_TOKEN
+    skin-id: bronze_sword
+    name: "&8[&6Bronze&8] &fSword Skin"
+    lore:
+      - "&7Applies Bronze skin to your sword."
+      - ""
+      - "&6Price: &e{price} {currency}"
+      - ""
+      - "&aLeft-click &7to purchase"
+    icon:
+      material: IRON_SWORD
+      item-model: "elitemobs:gear/bronze_sword"
+    price: 100
+    # Also give a Change Token automatically?
+    include-change-token: true
+    enabled: true
+
+  bronze_axe_skin:
+    type: SKIN_TOKEN
+    skin-id: bronze_axe
+    name: "&8[&6Bronze&8] &fAxe Skin"
+    lore:
+      - "&7Applies Bronze skin to your axe."
+      - ""
+      - "&6Price: &e{price} {currency}"
+      - ""
+      - "&aLeft-click &7to purchase"
+    icon:
+      material: IRON_AXE
+      item-model: "elitemobs:gear/bronze_axe"
+    price: 100
+    include-change-token: true
+    enabled: true
+
+  bronze_helmet_skin:
+    type: SKIN_TOKEN
+    skin-id: bronze_helmet
+    name: "&8[&6Bronze&8] &fHelmet Skin"
+    lore:
+      - "&7Applies Bronze skin to your helmet."
+      - ""
+      - "&6Price: &e{price} {currency}"
+      - ""
+      - "&aLeft-click &7to purchase"
+    icon:
+      material: IRON_HELMET
+      item-model: "elitemobs:gear/bronze_helmet"
+    price: 100
+    include-change-token: true
+    enabled: true
+
+  bronze_chestplate_skin:
+    type: SKIN_TOKEN
+    skin-id: bronze_chestplate
+    name: "&8[&6Bronze&8] &fChestplate Skin"
+    lore:
+      - "&7Applies Bronze skin to your chestplate."
+      - ""
+      - "&6Price: &e{price} {currency}"
+      - ""
+      - "&aLeft-click &7to purchase"
+    icon:
+      material: IRON_CHESTPLATE
+      item-model: "elitemobs:gear/bronze_chestplate"
+    price: 100
+    include-change-token: true
+    enabled: true
+
+  bronze_leggings_skin:
+    type: SKIN_TOKEN
+    skin-id: bronze_leggings
+    name: "&8[&6Bronze&8] &fLeggings Skin"
+    lore:
+      - "&7Applies Bronze skin to your leggings."
+      - ""
+      - "&6Price: &e{price} {currency}"
+      - ""
+      - "&aLeft-click &7to purchase"
+    icon:
+      material: IRON_LEGGINGS
+      item-model: "elitemobs:gear/bronze_leggings"
+    price: 100
+    include-change-token: true
+    enabled: true
+
+  bronze_boots_skin:
+    type: SKIN_TOKEN
+    skin-id: bronze_boots
+    name: "&8[&6Bronze&8] &fBoots Skin"
+    lore:
+      - "&7Applies Bronze skin to your boots."
+      - ""
+      - "&6Price: &e{price} {currency}"
+      - ""
+      - "&aLeft-click &7to purchase"
+    icon:
+      material: IRON_BOOTS
+      item-model: "elitemobs:gear/bronze_boots"
+    price: 100
+    include-change-token: true
+    enabled: true

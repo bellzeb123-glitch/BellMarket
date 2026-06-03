@@ -1,0 +1,51 @@
+# ================================================================
+#  BellMarket - Main Configuration
+# ================================================================
+
+# Language: en (English) or pl (Polish)
+language: en
+
+# Currency settings
+currency:
+  name: "BellCoins"
+  symbol: "✦"
+  # Format: {symbol}{amount} or {amount} {name}
+  format: "{symbol}{amount}"
+  # Starting balance for new players
+  starting-balance: 0
+
+# Shop settings
+shop:
+  # Title of the main shop GUI
+  title: "&8✦ &6BellMarket &8✦"
+  # Title of category GUIs
+  category-title: "&8✦ &6{category} &8✦"
+  # Rows in category GUI (4 = 36 slots, 5 = 45 slots, 6 = 54 slots)
+  category-rows: 5
+  # Rows in main menu (3 = 27 slots, 4 = 36 slots)
+  main-rows: 3
+  # URL for buying premium currency (shown as clickable link in chat)
+  premium-url: "https://your-store.tebex.io"
+  # Button text for buying currency
+  premium-button-text: "&eClick here to buy {currency}!"
+
+# Database settings
+database:
+  # Storage type: yaml or sqlite
+  type: yaml
+  # SQLite file name (only for sqlite type)
+  sqlite-file: "bellmarket.db"
+
+# Admin settings
+admin:
+  # Log all purchases to console
+  log-purchases: true
+  # Notify admins on large purchases (0 = disabled)
+  large-purchase-notify: 1000
+
+# Sounds
+sounds:
+  purchase-success: ENTITY_PLAYER_LEVELUP
+  purchase-fail: ENTITY_VILLAGER_NO
+  shop-open: UI_BUTTON_CLICK
+  navigate: UI_BUTTON_CLICK
