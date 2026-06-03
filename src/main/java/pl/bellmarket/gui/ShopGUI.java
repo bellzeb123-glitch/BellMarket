@@ -1,3 +1,8 @@
+-e /*
+ * BellMarket - Premium Shop Plugin
+ * Copyright (c) 2026 BellMarket. All rights reserved.
+ * Unauthorized copying, modification or distribution is prohibited.
+ */
 package pl.bellmarket.gui;
 
 import net.kyori.adventure.text.Component;
@@ -63,21 +68,22 @@ public class ShopGUI implements Listener {
     }
 
     // ── Layout constants ──────────────────────────────────────
-    // Category GUI: 5 rows (45 slots)
+    // Category GUI: 6 rows (54 slots)
     // Row 0 (0-8):   Top bar — back, balance, buy-currency button
-    // Row 1-3 (9-35): Products (27 slots = 3 rows × 9)
-    // Row 4 (36-44): Navigation — prev, page info, next
-    private static final int GUI_ROWS         = 5;
-    private static final int GUI_SIZE         = GUI_ROWS * 9; // 45
-    private static final int PRODUCTS_START   = 9;
-    private static final int PRODUCTS_END     = 35;
+    // Row 1 (9-17):  Separator row
+    // Row 2-4 (18-44): Products (27 slots = 3 rows x 9)
+    // Row 5 (45-53): Navigation
+    private static final int GUI_ROWS         = 6;
+    private static final int GUI_SIZE         = GUI_ROWS * 9; // 54
+    private static final int PRODUCTS_START   = 18;
+    private static final int PRODUCTS_END     = 44;
     private static final int PRODUCTS_PER_PAGE = (PRODUCTS_END - PRODUCTS_START + 1); // 27
     private static final int SLOT_BACK        = 0;
     private static final int SLOT_BALANCE     = 4;
     private static final int SLOT_BUY_CURRENCY = 8;
-    private static final int SLOT_PREV_PAGE   = 36;
-    private static final int SLOT_PAGE_INFO   = 40;
-    private static final int SLOT_NEXT_PAGE   = 44;
+    private static final int SLOT_PREV_PAGE   = 45;
+    private static final int SLOT_PAGE_INFO   = 49;
+    private static final int SLOT_NEXT_PAGE   = 53;
 
     // Main menu: 3 rows (27 slots)
     private static final int MAIN_ROWS        = 3;
@@ -150,6 +156,17 @@ public class ShopGUI implements Listener {
         inv.setItem(SLOT_BACK, buildBackButton());
         inv.setItem(SLOT_BALANCE, buildBalanceButton(player));
         inv.setItem(SLOT_BUY_CURRENCY, buildBuyCurrencyButton());
+
+        // Row 1: Category name display (separator row)
+        ItemStack catLabel = new ItemStack(category.getIconMaterial());
+        ItemMeta catMeta = catLabel.getItemMeta();
+        catMeta.displayName(colorize(category.getName()));
+        catMeta.lore(List.of(
+            colorize("&7Browse items in this category."),
+            colorize("&7Page &f" + (page + 1))
+        ));
+        catLabel.setItemMeta(catMeta);
+        inv.setItem(13, catLabel); // center of row 1
 
         // Products
         int start = page * PRODUCTS_PER_PAGE;
