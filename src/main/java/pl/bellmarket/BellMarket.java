@@ -90,7 +90,7 @@ public class BellMarket extends JavaPlugin {
         // Listeners
         PluginManager pm = getServer().getPluginManager();
         pm.registerEvents(new PlayerListener(this), this);
-        pm.registerEvents(new AdminChatListener(this, shopGUI.getAdminGUI()), this);
+        pm.registerEvents(new AdminChatListener(this, bmCmd.getAdminGUI()), this);
 
         // Startup banner
         getLogger().info("BellMarket v" + getDescription().getVersion() + " enabled!");

@@ -31,11 +31,11 @@ public class PurchaseProcessor {
 
     public enum Result {
         SUCCESS,
-        NOT_ENOUGH_FUNDS,
-        DISABLED,
-        NO_PERMISSION,
-        DELIVERY_FAILED,
-        CANCELLED
+        NOT_ENOUGH_COINS,    // original — used by ShopGUI directly
+        PRODUCT_DISABLED,    // original — used by ShopGUI directly
+        DELIVERY_FAILED,     // original
+        NO_PERMISSION,       // SESJA-1 addition
+        CANCELLED            // SESJA-1 addition
     }
 
     private final BellMarket plugin;
@@ -47,7 +47,7 @@ public class PurchaseProcessor {
     public Result process(Player player, Product product) {
         if (product == null || !product.isEnabled()) {
             playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
-            return Result.DISABLED;
+            return Result.PRODUCT_DISABLED;
         }
 
         // SESJA-1: permission gate (covers VIP_EXCLUSIVE + any product with required-permission)
@@ -69,7 +69,7 @@ public class PurchaseProcessor {
         };
         if (!hasEnough) {
             playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
-            return Result.NOT_ENOUGH_FUNDS;
+            return Result.NOT_ENOUGH_COINS;
         }
 
         // Withdraw before delivery so listeners see consistent state
@@ -80,7 +80,7 @@ public class PurchaseProcessor {
         };
         if (!withdrawn) {
             playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
-            return Result.NOT_ENOUGH_FUNDS;
+            return Result.NOT_ENOUGH_COINS;
         }
 
         // Fire purchase event — listeners may cancel
