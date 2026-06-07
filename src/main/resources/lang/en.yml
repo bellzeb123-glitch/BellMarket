@@ -68,3 +68,18 @@ gui:
   your-balance-lore:
     - "&7{symbol}{amount} {currency}"
   cancel-button: "&cCancel"
+
+provider:
+  skinstudio:
+    category-lore:
+      - "&7Tier: {color}{tier}"
+      - "&7Skins available: &f{count}"
+      - ""
+      - "&eClick to open"
+    product-lore:
+      - "&7Skin ID: &8{skin-id}"
+      - "&7Tier: {color}{tier}"
+      - ""
+      - "&6Price: &e{price} {currency}"
+      - ""
+      - "&aLeft-click &7to purchase"
