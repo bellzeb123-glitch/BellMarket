@@ -1,19 +1,21 @@
 /*
  * BellMarket - SkinStudioProvider
  *
- * SESJA-1 — replaces the legacy SkinStudioGenerator with a ProductProvider
- * implementation. Behaviour-identical EXCEPT for the change_token bug:
+ * SESJA-1.1: groups skins by tier prefix into separate categories, mirroring
+ * the legacy 01_bronze / 02_living / ... layout (but generated in memory,
+ * never written to disk — so the include-change-token bug cannot return).
  *
- *   ⚠ FIX: every skin product is built with .includeChangeToken(false).
- *          Previously this defaulted to false in Builder but the upstream
- *          SkinStudioGenerator code path may have set true somewhere
- *          (compilation showed includeChangeToken being touched in delivery).
- *          We make the intent EXPLICIT here so future refactors can't
- *          accidentally regress.
+ * Tier detection: prefix BEFORE first underscore of skin key.
+ *   bronze_sword     → tier "bronze"
+ *   living_axe       → tier "living"
+ *   frost_palace_*   → tier "frost"   (only first segment matters)
  *
- * The standalone 00_tokens.yml `change_token` product is unaffected — it lives
- * in CategoryManager's file-based path, NOT here. That product correctly sets
- * includeChangeToken: true via its YAML.
+ * Icons: reads SkinStudio config:
+ *   - display-name → product name (preserves original PL formatting)
+ *   - item-model   → setItemModel (3D preview in shop GUI)
+ *   - item-types[0] → icon material (first compatible material)
+ *
+ * Unknown tiers fall back to generic gray category at order 999.
  */
 package pl.bellmarket.provider;
 
@@ -34,28 +36,21 @@ public class SkinStudioProvider implements ProductProvider {
 
     private final BellMarket plugin;
 
-    // Detection rules — moved here from the legacy SkinStudioGenerator so the
-    // provider is self-contained. Tweakable via config in a future session.
-    private static final Map<String, String> TIER_META = Map.of(
-        "common",    "&7",
-        "uncommon",  "&a",
-        "rare",      "&9",
-        "epic",      "&5",
-        "legendary", "&6",
-        "mythic",    "&d"
-    );
+    /** Per-tier metadata: display name, color, icon material, order. */
+    private record TierMeta(String displayName, String color, Material icon, int order) {}
 
-    private static final Map<String, Material> WEAPON_ICONS = Map.of(
-        "sword",  Material.DIAMOND_SWORD,
-        "axe",    Material.DIAMOND_AXE,
-        "bow",    Material.BOW,
-        "trident",Material.TRIDENT,
-        "shield", Material.SHIELD,
-        "helmet", Material.DIAMOND_HELMET,
-        "chest",  Material.DIAMOND_CHESTPLATE,
-        "legs",   Material.DIAMOND_LEGGINGS,
-        "boots",  Material.DIAMOND_BOOTS
-    );
+    private static final Map<String, TierMeta> TIER_META = new LinkedHashMap<>();
+    static {
+        TIER_META.put("bronze",      new TierMeta("Brąz",        "&6", Material.COPPER_INGOT,           10));
+        TIER_META.put("living",      new TierMeta("Żyjący",      "&a", Material.SLIME_BLOCK,            20));
+        TIER_META.put("corrupted",   new TierMeta("Skażony",     "&5", Material.WITHER_SKELETON_SKULL,  30));
+        TIER_META.put("palladium",   new TierMeta("Palladium",   "&b", Material.NETHERITE_INGOT,        40));
+        TIER_META.put("ultimatium",  new TierMeta("Ultimatium",  "&e", Material.DIAMOND_BLOCK,          50));
+        TIER_META.put("craftenmine", new TierMeta("Craftenmine", "&6", Material.NETHERITE_BLOCK,        60));
+        TIER_META.put("frost",       new TierMeta("Frost",       "&b", Material.ICE,                    70));
+        TIER_META.put("primis",      new TierMeta("Primis",      "&d", Material.AMETHYST_BLOCK,         80));
+        TIER_META.put("magmaguys",   new TierMeta("MagmaGuys",   "&c", Material.MAGMA_BLOCK,            90));
+    }
 
     public SkinStudioProvider(BellMarket plugin) {
         this.plugin = plugin;
@@ -71,99 +66,134 @@ public class SkinStudioProvider implements ProductProvider {
     }
 
     @Override
-    public Category generateCategory(long defaultPrice) {
+    public List<Category> generateCategories(long defaultPrice) {
         Plugin sk = plugin.getServer().getPluginManager().getPlugin("SkinStudio");
         if (sk == null) {
             plugin.getLogger().warning("[SkinStudioProvider] SkinStudio not found");
-            return null;
+            return Collections.emptyList();
         }
 
         File configFile = new File(sk.getDataFolder(), "config.yml");
         if (!configFile.exists()) {
-            plugin.getLogger().warning("[SkinStudioProvider] SkinStudio config.yml missing at "
-                + configFile.getPath());
-            return null;
+            plugin.getLogger().warning("[SkinStudioProvider] SkinStudio config.yml missing");
+            return Collections.emptyList();
         }
 
         FileConfiguration cfg = YamlConfiguration.loadConfiguration(configFile);
         ConfigurationSection skins = cfg.getConfigurationSection("skins");
         if (skins == null) {
-            plugin.getLogger().warning("[SkinStudioProvider] No 'skins' section in SkinStudio config.yml");
-            return null;
+            plugin.getLogger().warning("[SkinStudioProvider] No 'skins' section");
+            return Collections.emptyList();
         }
 
-        // Provider config in BellMarket's own config.yml
-        String catName  = plugin.getConfig().getString(
-            "providers.skinstudio.category-name", "Skins");
+        // Plugin config: provider-level overrides
         boolean includeChange = plugin.getConfig().getBoolean(
-            "providers.skinstudio.include-change-token", false);  // ← user can force-enable globally
+            "providers.skinstudio.include-change-token", false);
+        int baseOrder = plugin.getConfig().getInt(
+            "providers.skinstudio.order", 10);
 
-        List<Product> products = new ArrayList<>();
+        // Group skin keys by tier
+        Map<String, List<String>> byTier = new LinkedHashMap<>();
         for (String skinKey : skins.getKeys(false)) {
-            String tier = detectTier(skinKey);
-            String tierColor = TIER_META.getOrDefault(tier, "&f");
-            Material icon = detectWeaponIcon(skinKey);
-
-            Product p = new Product.Builder()
-                .id("skinstudio_" + skinKey)
-                .type(Product.Type.SKIN_TOKEN)
-                .name(tierColor + "✦ " + capitalize(skinKey.replace('_', ' ')))
-                .lore(List.of(
-                    "&7Tier: " + tierColor + capitalize(tier),
-                    "&7Skin ID: &8" + skinKey,
-                    "",
-                    "&6Price: &e{price} {currency}",
-                    "",
-                    "&aLeft-click &7to purchase"
-                ))
-                .price(defaultPrice)
-                .enabled(true)
-                .iconMaterial(icon)
-                .skinId(skinKey)
-                .includeChangeToken(includeChange)   // ⚠ EXPLICIT — fixes the bug
-                .currency(Currency.BELLCOINS)
-                .providerSource("skinstudio")
-                .build();
-
-            products.add(p);
+            String tier = tierOf(skinKey);
+            byTier.computeIfAbsent(tier, k -> new ArrayList<>()).add(skinKey);
         }
 
-        Category cat = new Category(
-            "skinstudio_skins",                                  // id
-            "&6✦ " + catName,                                    // name
-            catName,                                             // displayName
-            plugin.getConfig().getInt("providers.skinstudio.order", 5),  // order
-            true,                                                // enabled
-            Material.PLAYER_HEAD,                                // iconMaterial
-            "&6✦ " + catName,                                    // iconName
-            List.of(                                             // iconLore
-                "&7Auto-generated from SkinStudio config.",
+        // Build one Category per tier
+        List<Category> out = new ArrayList<>();
+        for (Map.Entry<String, List<String>> tierEntry : byTier.entrySet()) {
+            String tierKey = tierEntry.getKey();
+            List<String> tierSkins = tierEntry.getValue();
+            TierMeta meta = TIER_META.getOrDefault(tierKey, defaultTierMeta(tierKey));
+
+            List<Product> products = new ArrayList<>();
+            for (String skinKey : tierSkins) {
+                ConfigurationSection sd = skins.getConfigurationSection(skinKey);
+                if (sd == null) continue;
+                Product p = buildSkinProduct(skinKey, sd, defaultPrice, includeChange, meta);
+                if (p != null) products.add(p);
+            }
+
+            if (products.isEmpty()) continue;
+
+            String catName = meta.color() + "✦ " + meta.displayName();
+            List<String> catLore = List.of(
+                "&7Tier: " + meta.color() + meta.displayName(),
+                "&7Skins available: &f" + products.size(),
                 "",
                 "&eClick to open"
-            ),
-            products                                             // products
+            );
+
+            Category cat = new Category(
+                "skinstudio_" + tierKey,                      // id
+                catName,                                       // name (raw)
+                meta.color() + meta.displayName(),             // displayName (clean)
+                baseOrder + meta.order(),                      // order
+                true,                                          // enabled
+                meta.icon(),                                   // icon material
+                catName,                                       // icon name
+                catLore,                                       // icon lore
+                products                                       // products
+            );
+            out.add(cat);
+        }
+
+        return out;
+    }
+
+    private Product buildSkinProduct(String skinKey, ConfigurationSection sd,
+                                     long defaultPrice, boolean includeChange,
+                                     TierMeta meta) {
+        // From SkinStudio config:
+        String displayName = sd.getString("display-name",
+            meta.color() + capitalize(skinKey.replace('_', ' ')));
+        String itemModel = sd.getString("item-model", null);
+        List<String> itemTypes = sd.getStringList("item-types");
+
+        // First listed item-type as the icon material; fallback PAPER
+        Material iconMat = Material.PAPER;
+        if (!itemTypes.isEmpty()) {
+            try {
+                iconMat = Material.valueOf(itemTypes.get(0).toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {}
+        }
+
+        List<String> lore = List.of(
+            "&7Skin ID: &8" + skinKey,
+            "&7Tier: " + meta.color() + meta.displayName(),
+            "",
+            "&6Cena: &e" + defaultPrice + " BellCoins",
+            "",
+            "&aKliknij LPM &7aby kupić"
         );
 
-        return cat;
+        return new Product.Builder()
+            .id("skinstudio_" + skinKey)
+            .type(Product.Type.SKIN_TOKEN)
+            .name(displayName)
+            .lore(lore)
+            .price(defaultPrice)
+            .enabled(true)
+            .iconMaterial(iconMat)
+            .iconItemModel(itemModel)          // ← 3D preview from resource pack
+            .skinId(skinKey)
+            .includeChangeToken(includeChange) // ← explicit false unless config says otherwise
+            .currency(Currency.BELLCOINS)
+            .providerSource("skinstudio")
+            .build();
     }
 
-    private String detectTier(String skinKey) {
-        String lower = skinKey.toLowerCase(Locale.ROOT);
-        for (String tier : TIER_META.keySet()) {
-            if (lower.contains(tier)) return tier;
-        }
-        return "common";
+    /** Extract tier from key like "bronze_sword" → "bronze". */
+    private static String tierOf(String skinKey) {
+        int us = skinKey.indexOf('_');
+        return us > 0 ? skinKey.substring(0, us).toLowerCase(Locale.ROOT) : "other";
     }
 
-    private Material detectWeaponIcon(String skinKey) {
-        String lower = skinKey.toLowerCase(Locale.ROOT);
-        for (Map.Entry<String, Material> e : WEAPON_ICONS.entrySet()) {
-            if (lower.contains(e.getKey())) return e.getValue();
-        }
-        return Material.PAPER;
+    private static TierMeta defaultTierMeta(String tier) {
+        return new TierMeta(capitalize(tier), "&7", Material.PAPER, 999);
     }
 
-    private String capitalize(String s) {
+    private static String capitalize(String s) {
         if (s == null || s.isEmpty()) return s;
         String[] parts = s.split(" ");
         StringBuilder sb = new StringBuilder();

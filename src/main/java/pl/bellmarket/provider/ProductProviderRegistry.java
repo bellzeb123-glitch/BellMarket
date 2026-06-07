@@ -82,7 +82,7 @@ public class ProductProviderRegistry {
 
     /**
      * Run every enabled+available provider and collect their categories.
-     * Caller (CategoryManager.reload) adds them to its catalog.
+     * Caller (BellMarket.reload) adds them to its catalog.
      */
     public synchronized List<Category> generateAll() {
         List<Category> out = new ArrayList<>();
@@ -97,11 +97,12 @@ public class ProductProviderRegistry {
                 continue;
             }
             try {
-                Category cat = p.generateCategory(getDefaultPrice(id));
-                if (cat != null) {
-                    out.add(cat);
-                    plugin.getLogger().info("[Providers] " + id + " → category '"
-                        + cat.getId() + "' (" + cat.getProducts().size() + " products)");
+                List<Category> cats = p.generateCategories(getDefaultPrice(id));
+                if (cats != null && !cats.isEmpty()) {
+                    int totalProducts = cats.stream().mapToInt(c -> c.getProducts().size()).sum();
+                    out.addAll(cats);
+                    plugin.getLogger().info("[Providers] " + id + " → "
+                        + cats.size() + " categories, " + totalProducts + " products total");
                 }
             } catch (Throwable t) {
                 plugin.getLogger().warning("[Providers] " + id + " — generation failed: " + t.getMessage());

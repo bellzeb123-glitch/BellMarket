@@ -1,58 +1,42 @@
 /*
  * BellMarket - ProductProvider
  *
- * The contract that any integration (SkinStudio, MythicMobs, EliteMobs,
- * FreeMinecraftModels, ItemsAdder, Nexo, BellMounts...) implements to feed
- * products into BellMarket's shop.
+ * SESJA-1.1: changed return type to List<Category> so providers like
+ * SkinStudioProvider can produce MULTIPLE categories (one per tier).
  *
- * BellMarket runs every registered provider whose:
- *   - getProviderId() is enabled in config.yml under providers.<id>.enabled
- *   - isAvailable() returns true (i.e. the underlying plugin is loaded)
- *
- * Providers are typically registered in BellMarket.onEnable() (built-in) or
- * in an external plugin's onEnable() via BellMarketAPI.getProviderRegistry()
- * .register(...).
+ * Old contract: Category generateCategory(long defaultPrice).
+ * New contract: List<Category> generateCategories(long defaultPrice).
  */
 package pl.bellmarket.provider;
 
 import pl.bellmarket.model.Category;
-import pl.bellmarket.model.Product;
 
+import java.util.Collections;
 import java.util.List;
 
 public interface ProductProvider {
 
-    /**
-     * Stable identifier used in config (e.g. "skinstudio", "mythicmobs",
-     * "bellmounts"). Letters, digits, underscore.
-     */
+    /** Stable identifier used in config (e.g. "skinstudio", "mythicmobs"). */
     String getProviderId();
 
-    /**
-     * Whether the underlying plugin/data source is present and ready.
-     * SkinStudioProvider returns true if SkinStudio plugin is loaded,
-     * for example. If false, this provider is skipped entirely.
-     */
+    /** Whether the underlying plugin is loaded and ready. */
     boolean isAvailable();
 
     /**
-     * Generates the category and its products. Called once at startup and
-     * once per /bellmarket reload. Implementations should be cheap-ish to
-     * call repeatedly — heavy parsing should be cached internally.
+     * Generates one or more categories with their products. Called once at
+     * startup and once per /bellmarket reload.
      *
-     * Returning null OR a Category with empty product list is allowed and
-     * results in nothing being shown for this provider.
-     *
-     * @param defaultPrice price suggestion from config (provider may ignore)
-     * @return generated category or null
+     * Returning null or empty list = nothing shown for this provider.
      */
-    Category generateCategory(long defaultPrice);
+    List<Category> generateCategories(long defaultPrice);
 
-    /**
-     * Optional: a human-readable description of what this provider does.
-     * Shown in admin GUI / `/bellmarket providers` listing.
-     */
+    /** Optional human-readable description. */
     default String describe() {
         return getProviderId() + " (" + (isAvailable() ? "available" : "unavailable") + ")";
+    }
+
+    /** Convenience helper for providers that produce exactly one category. */
+    static List<Category> single(Category cat) {
+        return cat == null ? Collections.emptyList() : List.of(cat);
     }
 }
