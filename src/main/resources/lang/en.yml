@@ -2,14 +2,12 @@
 #  BellMarket - English Language File
 # ================================================================
 
-# General
 prefix: "&8[&6BellMarket&8] &r"
 no-permission: "&cYou don't have permission to do this."
 player-not-found: "&cPlayer &e{player}&c not found."
 invalid-amount: "&cInvalid amount. Please enter a positive number."
 player-only: "&cThis command can only be used by players."
 
-# Currency messages
 currency:
   balance: "&7Your balance: &6{symbol}{amount} {currency}"
   balance-other: "&7Balance of &e{player}&7: &6{symbol}{amount} {currency}"
@@ -22,7 +20,6 @@ currency:
   top-header: "&6&l=== Top {currency} Holders ==="
   top-entry: "&7{rank}. &e{player}&7: &6{symbol}{amount}"
 
-# Shop messages
 shop:
   opened: "&aOpening &6BellMarket&a..."
   purchase-success: "&aPurchase successful! You bought &e{product}&a for &6{symbol}{price} {currency}&a."
@@ -42,7 +39,6 @@ shop:
   confirm-no: "&cCancel"
   confirm-info: "&7Buy &e{product}&7 for &6{symbol}{price}?"
 
-# Admin messages
 admin:
   reloaded: "&aBellMarket reloaded successfully."
   panel-opened: "&aOpening admin panel..."
@@ -50,11 +46,9 @@ admin:
   coins-added: "&aCoins added successfully."
   coins-removed: "&aCoins removed successfully."
   purchase-log: "[BellMarket] {player} bought {product} for {price} {currency}"
-  # ── SESJA-2 additions ────────────────────────────────────────
   language-switched: '&8[&6BellMarket&8] &aLanguage switched to: &f{lang}'
   language-current:  '&8[&6BellMarket&8] &7Current language: &f{lang}'
 
-# GUI item names
 gui:
   currency-button: "&6✦ Buy {currency}"
   currency-button-lore:
@@ -65,16 +59,16 @@ gui:
   back-button: "&7← Back"
   next-page: "&7Next Page →"
   prev-page: "&7← Previous Page"
+  page-info: "&7Page {current}/{total}"   # ← FIX: was missing from gui section
   close-button: "&cClose"
   admin-panel: "&c⚙ Admin Panel"
   your-balance: "&6Your Balance"
   your-balance-lore:
     - "&7{symbol}{amount} {currency}"
   cancel-button: "&cCancel"
+  confirm-yes: "&aConfirm"
+  cancel: "&cCancel"
 
-# ── SESJA-2 additions ──────────────────────────────────────────
-
-# Provider integration lore (per-tier categories + per-skin products)
 provider:
   skinstudio:
     category-lore:
@@ -90,7 +84,6 @@ provider:
       - ''
       - '&aLeft-click &7to purchase'
 
-# VIP Token command messages
 viptoken:
   balance-self:     '&8[&5VIP&8] &7Your balance: &d{amount} &7VIP Tokens'
   balance-other:    '&8[&5VIP&8] &7{player}''s balance: &d{amount} &7VIP Tokens'

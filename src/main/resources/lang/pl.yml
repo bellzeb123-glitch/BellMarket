@@ -2,14 +2,12 @@
 #  BellMarket - Polish Language File
 # ================================================================
 
-# General
 prefix: "&8[&6BellMarket&8] &r"
 no-permission: "&cNie masz uprawnień do tej akcji."
 player-not-found: "&cNie znaleziono gracza &e{player}&c."
 invalid-amount: "&cNieprawidłowa kwota. Podaj liczbę dodatnią."
 player-only: "&cTa komenda jest tylko dla graczy."
 
-# Currency messages
 currency:
   balance: "&7Twoje saldo: &6{symbol}{amount} {currency}"
   balance-other: "&7Saldo gracza &e{player}&7: &6{symbol}{amount} {currency}"
@@ -22,7 +20,6 @@ currency:
   top-header: "&6&l=== Ranking {currency} ==="
   top-entry: "&7{rank}. &e{player}&7: &6{symbol}{amount}"
 
-# Shop messages
 shop:
   opened: "&aOtwieranie &6BellMarket&a..."
   purchase-success: "&aZakup udany! Kupiłeś &e{product}&a za &6{symbol}{price} {currency}&a."
@@ -42,7 +39,6 @@ shop:
   confirm-no: "&cAnuluj"
   confirm-info: "&7Kupić &e{product}&7 za &6{symbol}{price}?"
 
-# Admin messages
 admin:
   reloaded: "&aBellMarket przeładowany pomyślnie."
   panel-opened: "&aOtwieranie panelu admina..."
@@ -50,11 +46,9 @@ admin:
   coins-added: "&aMonety dodane pomyślnie."
   coins-removed: "&aMonety odjęte pomyślnie."
   purchase-log: "[BellMarket] {player} kupił {product} za {price} {currency}"
-  # ── SESJA-2 dodane ──────────────────────────────────────────
   language-switched: '&8[&6BellMarket&8] &aJęzyk zmieniony na: &f{lang}'
   language-current:  '&8[&6BellMarket&8] &7Aktualny język: &f{lang}'
 
-# GUI item names
 gui:
   currency-button: "&6✦ Kup {currency}"
   currency-button-lore:
@@ -65,16 +59,16 @@ gui:
   back-button: "&7← Wróć"
   next-page: "&7Następna strona →"
   prev-page: "&7← Poprzednia strona"
+  page-info: "&7Strona {current}/{total}"   # ← FIX: brakowało w sekcji gui
   close-button: "&cZamknij"
   admin-panel: "&c⚙ Panel Admina"
   your-balance: "&6Twoje Saldo"
   your-balance-lore:
     - "&7{symbol}{amount} {currency}"
   cancel-button: "&cAnuluj"
+  confirm-yes: "&aPotwierdzam"
+  cancel: "&cAnuluj"
 
-# ── SESJA-2 dodane ────────────────────────────────────────────
-
-# Provider integration lore (kategorie per-tier + produkty per-skin)
 provider:
   skinstudio:
     category-lore:
@@ -90,7 +84,6 @@ provider:
       - ''
       - '&aLewy klik &7aby kupić'
 
-# Komendy VIP Token
 viptoken:
   balance-self:     '&8[&5VIP&8] &7Twój balans: &d{amount} &7Tokenów VIP'
   balance-other:    '&8[&5VIP&8] &7Balans &f{player}&7: &d{amount} &7Tokenów VIP'
