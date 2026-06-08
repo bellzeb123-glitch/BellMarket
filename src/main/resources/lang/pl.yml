@@ -50,6 +50,9 @@ admin:
   coins-added: "&aMonety dodane pomyślnie."
   coins-removed: "&aMonety odjęte pomyślnie."
   purchase-log: "[BellMarket] {player} kupił {product} za {price} {currency}"
+  # ── SESJA-2 dodane ──────────────────────────────────────────
+  language-switched: '&8[&6BellMarket&8] &aJęzyk zmieniony na: &f{lang}'
+  language-current:  '&8[&6BellMarket&8] &7Aktualny język: &f{lang}'
 
 # GUI item names
 gui:
@@ -69,18 +72,32 @@ gui:
     - "&7{symbol}{amount} {currency}"
   cancel-button: "&cAnuluj"
 
+# ── SESJA-2 dodane ────────────────────────────────────────────
+
+# Provider integration lore (kategorie per-tier + produkty per-skin)
 provider:
   skinstudio:
     category-lore:
-      - "&7Poziom: {color}{tier}"
-      - "&7Dostępne skiny: &f{count}"
-      - ""
-      - "&eKliknij aby otworzyć"
+      - '&7Poziom: {color}{tier}'
+      - '&7Dostępne skiny: &f{count}'
+      - ''
+      - '&eKliknij aby otworzyć'
     product-lore:
-      - "&7ID Skina: &8{skin-id}"
-      - "&7Poziom: {color}{tier}"
-      - ""
-      - "&6Cena: &e{price} {currency}"
-      - ""
-      - "&aLewy klik &7aby kupić"
+      - '&7ID Skina: &8{skin-id}'
+      - '&7Poziom: {color}{tier}'
+      - ''
+      - '&6Cena: &e{price} {currency}'
+      - ''
+      - '&aLewy klik &7aby kupić'
 
+# Komendy VIP Token
+viptoken:
+  balance-self:     '&8[&5VIP&8] &7Twój balans: &d{amount} &7Tokenów VIP'
+  balance-other:    '&8[&5VIP&8] &7Balans &f{player}&7: &d{amount} &7Tokenów VIP'
+  received:         '&8[&5VIP&8] &7Otrzymałeś &d+{amount} Tokenów VIP&7! Balans: &d{balance}'
+  given:            '&aPrzekazano &d{amount} Tokenów VIP &7do &f{player}&7. Nowy balans: &d{balance}'
+  taken:            '&aZabrano &d{amount} Tokenów VIP &7od &f{player}&7. Nowy balans: &d{balance}'
+  set:              '&aUstawiono balans &f{player}&7 na &d{amount} Tokenów VIP&7.'
+  no-permission:    '&cBrak uprawnień.'
+  player-not-found: '&cNie znaleziono gracza: &f{name}'
+  invalid-amount:   '&cIlość musi być liczbą dodatnią.'

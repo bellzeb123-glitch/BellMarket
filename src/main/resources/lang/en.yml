@@ -50,6 +50,9 @@ admin:
   coins-added: "&aCoins added successfully."
   coins-removed: "&aCoins removed successfully."
   purchase-log: "[BellMarket] {player} bought {product} for {price} {currency}"
+  # ── SESJA-2 additions ────────────────────────────────────────
+  language-switched: '&8[&6BellMarket&8] &aLanguage switched to: &f{lang}'
+  language-current:  '&8[&6BellMarket&8] &7Current language: &f{lang}'
 
 # GUI item names
 gui:
@@ -69,17 +72,32 @@ gui:
     - "&7{symbol}{amount} {currency}"
   cancel-button: "&cCancel"
 
+# ── SESJA-2 additions ──────────────────────────────────────────
+
+# Provider integration lore (per-tier categories + per-skin products)
 provider:
   skinstudio:
     category-lore:
-      - "&7Tier: {color}{tier}"
-      - "&7Skins available: &f{count}"
-      - ""
-      - "&eClick to open"
+      - '&7Tier: {color}{tier}'
+      - '&7Skins available: &f{count}'
+      - ''
+      - '&eClick to open'
     product-lore:
-      - "&7Skin ID: &8{skin-id}"
-      - "&7Tier: {color}{tier}"
-      - ""
-      - "&6Price: &e{price} {currency}"
-      - ""
-      - "&aLeft-click &7to purchase"
+      - '&7Skin ID: &8{skin-id}'
+      - '&7Tier: {color}{tier}'
+      - ''
+      - '&6Price: &e{price} {currency}'
+      - ''
+      - '&aLeft-click &7to purchase'
+
+# VIP Token command messages
+viptoken:
+  balance-self:     '&8[&5VIP&8] &7Your balance: &d{amount} &7VIP Tokens'
+  balance-other:    '&8[&5VIP&8] &7{player}''s balance: &d{amount} &7VIP Tokens'
+  received:         '&8[&5VIP&8] &7You received &d+{amount} VIP Tokens&7! Balance: &d{balance}'
+  given:            '&aGave &d{amount} VIP Tokens &7to &f{player}&7. New balance: &d{balance}'
+  taken:            '&aTook &d{amount} VIP Tokens &7from &f{player}&7. New balance: &d{balance}'
+  set:              '&aSet &f{player}&7''s balance to &d{amount} VIP Tokens&7.'
+  no-permission:    '&cYou do not have permission.'
+  player-not-found: '&cPlayer not found: &f{name}'
+  invalid-amount:   '&cAmount must be a positive number.'

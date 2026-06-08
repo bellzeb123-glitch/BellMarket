@@ -2,6 +2,11 @@
  * BellMarket - Premium Shop Plugin
  * Copyright (c) 2026 BellMarket. All rights reserved.
  * Unauthorized copying, modification or distribution is prohibited.
+ *
+ * SESJA-2 changes:
+ *   - openMainMenu()    uses getVisibleCategories(player) instead of getCategories()
+ *   - handleMainMenuClick() uses getVisibleCategories(player) for index consistency
+ *   Both must use the SAME source so click-slot ↔ category-index stays aligned.
  */
 package pl.bellmarket.gui;
 
@@ -31,7 +36,6 @@ import java.util.*;
 
 public class ShopGUI implements Listener {
 
-    // ── InventoryHolder to identify our GUI ─────────────────
     public static class ShopHolder implements InventoryHolder {
         private final String categoryId;
         private final int page;
@@ -48,7 +52,6 @@ public class ShopGUI implements Listener {
         public boolean isMainMenu()               { return categoryId == null; }
     }
 
-    // ── Confirm holder ────────────────────────────────────────
     public static class ConfirmHolder implements InventoryHolder {
         private final String categoryId;
         private final String productId;
@@ -67,17 +70,11 @@ public class ShopGUI implements Listener {
         public int getPage()                      { return page; }
     }
 
-    // ── Layout constants ──────────────────────────────────────
-    // Category GUI: 6 rows (54 slots)
-    // Row 0 (0-8):   Top bar — back, balance, buy-currency button
-    // Row 1 (9-17):  Separator row
-    // Row 2-4 (18-44): Products (27 slots = 3 rows x 9)
-    // Row 5 (45-53): Navigation
     private static final int GUI_ROWS         = 6;
-    private static final int GUI_SIZE         = GUI_ROWS * 9; // 54
+    private static final int GUI_SIZE         = GUI_ROWS * 9;
     private static final int PRODUCTS_START   = 18;
     private static final int PRODUCTS_END     = 44;
-    private static final int PRODUCTS_PER_PAGE = (PRODUCTS_END - PRODUCTS_START + 1); // 27
+    private static final int PRODUCTS_PER_PAGE = (PRODUCTS_END - PRODUCTS_START + 1);
     private static final int SLOT_BACK        = 0;
     private static final int SLOT_BALANCE     = 4;
     private static final int SLOT_BUY_CURRENCY = 8;
@@ -85,12 +82,8 @@ public class ShopGUI implements Listener {
     private static final int SLOT_PAGE_INFO   = 49;
     private static final int SLOT_NEXT_PAGE   = 53;
 
-    // Main menu: 6 rows (54 slots)
-    // Row 0 (0-8):   Top bar — balance, buy currency, decorations
-    // Row 1-4 (9-44): Categories (36 slots = 4 rows x 9)
-    // Row 5 (45-53): Bottom bar — decorations
     private static final int MAIN_ROWS         = 6;
-    private static final int MAIN_SIZE         = MAIN_ROWS * 9; // 54
+    private static final int MAIN_SIZE         = MAIN_ROWS * 9;
     private static final int MAIN_CAT_START    = 9;
     private static final int MAIN_CAT_END      = 44;
     private static final int MAIN_BUY_CURRENCY = 8;
@@ -105,24 +98,20 @@ public class ShopGUI implements Listener {
         Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
-    // ── Open methods ──────────────────────────────────────────
-
     public void openMainMenu(Player player) {
-        List<Category> categories = plugin.getCategories().getCategories();
+        // SESJA-2: filter categories by player's permissions
+        List<Category> categories = plugin.getCategories().getVisibleCategories(player);
 
         ShopHolder holder = new ShopHolder(null, 0);
         String title = plugin.getConfig().getString("shop.title", "&8✦ &6BellMarket &8✦");
         Inventory inv = Bukkit.createInventory(holder, MAIN_SIZE, colorize(title));
         holder.setInventory(inv);
 
-        // Tło
         fillBackground(inv, MAIN_SIZE);
 
-        // Rząd 0 — stałe elementy (nie można tu wstawiać kategorii)
         inv.setItem(MAIN_BALANCE, buildBalanceButton(player));
         inv.setItem(MAIN_BUY_CURRENCY, buildBuyCurrencyButton());
 
-        // Rzędy 1-4 — kategorie (sloty 9-44)
         int slot = MAIN_CAT_START;
         for (Category cat : categories) {
             if (slot > MAIN_CAT_END) break;
@@ -141,6 +130,13 @@ public class ShopGUI implements Listener {
             return;
         }
 
+        // SESJA-2: also verify visibility on direct category open
+        // (prevents URL-style bypass through /bm reload chaining or external tools)
+        if (!plugin.getCategories().canSee(player, category)) {
+            player.sendMessage(plugin.getLang().component("no-permission"));
+            return;
+        }
+
         List<Product> products = category.getEnabledProducts();
         int totalPages = Math.max(1, (int) Math.ceil((double) products.size() / PRODUCTS_PER_PAGE));
         page = Math.max(0, Math.min(page, totalPages - 1));
@@ -151,15 +147,12 @@ public class ShopGUI implements Listener {
         Inventory inv = Bukkit.createInventory(holder, GUI_SIZE, colorize(title));
         holder.setInventory(inv);
 
-        // Fill background
         fillBackground(inv, GUI_SIZE);
 
-        // Top bar
         inv.setItem(SLOT_BACK, buildBackButton());
         inv.setItem(SLOT_BALANCE, buildBalanceButton(player));
         inv.setItem(SLOT_BUY_CURRENCY, buildBuyCurrencyButton());
 
-        // Row 1: Category name display (separator row)
         ItemStack catLabel = new ItemStack(category.getIconMaterial());
         ItemMeta catMeta = catLabel.getItemMeta();
         catMeta.displayName(colorize(category.getName()));
@@ -168,9 +161,8 @@ public class ShopGUI implements Listener {
             colorize("&7Page &f" + (page + 1))
         ));
         catLabel.setItemMeta(catMeta);
-        inv.setItem(13, catLabel); // center of row 1
+        inv.setItem(13, catLabel);
 
-        // Products
         int start = page * PRODUCTS_PER_PAGE;
         int end = Math.min(start + PRODUCTS_PER_PAGE, products.size());
         int slot = PRODUCTS_START;
@@ -179,7 +171,6 @@ public class ShopGUI implements Listener {
             slot++;
         }
 
-        // Navigation
         if (page > 0)                inv.setItem(SLOT_PREV_PAGE, buildPrevButton());
         if (page < totalPages - 1)   inv.setItem(SLOT_NEXT_PAGE, buildNextButton());
         inv.setItem(SLOT_PAGE_INFO, buildPageInfo(page + 1, totalPages));
@@ -202,27 +193,18 @@ public class ShopGUI implements Listener {
         holder.setInventory(inv);
 
         fillBackground(inv, 27);
-
-        // Product preview in center
         inv.setItem(13, product.buildIcon());
-
-        // Confirm button (slot 11)
         inv.setItem(11, buildConfirmButton(product));
-
-        // Cancel button (slot 15)
         inv.setItem(15, buildCancelButton());
 
         player.openInventory(inv);
     }
-
-    // ── Event handlers ────────────────────────────────────────
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         Inventory inv = event.getInventory();
 
-        // ── Confirm GUI ───────────────────────────────────────
         if (inv.getHolder() instanceof ConfirmHolder holder) {
             event.setCancelled(true);
             int slot = event.getRawSlot();
@@ -234,7 +216,6 @@ public class ShopGUI implements Listener {
             return;
         }
 
-        // ── Shop GUI ──────────────────────────────────────────
         if (!(inv.getHolder() instanceof ShopHolder holder)) return;
         event.setCancelled(true);
 
@@ -244,13 +225,10 @@ public class ShopGUI implements Listener {
         ItemStack clicked = inv.getItem(slot);
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
-        // Main menu click
         if (holder.isMainMenu()) {
             handleMainMenuClick(player, slot, inv);
             return;
         }
-
-        // Category GUI click
         handleCategoryClick(player, holder, slot, clicked, inv);
     }
 
@@ -263,22 +241,18 @@ public class ShopGUI implements Listener {
     }
 
     @EventHandler
-    public void onInventoryClose(InventoryCloseEvent event) {
-        // Nothing special needed — InventoryHolder handles lifecycle
-    }
-
-    // ── Click handlers ────────────────────────────────────────
+    public void onInventoryClose(InventoryCloseEvent event) { }
 
     private void handleMainMenuClick(Player player, int slot, Inventory inv) {
-        // Rząd 0 — stałe elementy
         if (slot < 9) {
             if (slot == MAIN_BUY_CURRENCY) sendPremiumUrl(player);
             return;
         }
 
-        // Rzędy 1-4 — kategorie
         if (slot >= MAIN_CAT_START && slot <= MAIN_CAT_END) {
-            List<Category> categories = plugin.getCategories().getCategories();
+            // SESJA-2: use VISIBLE categories (same source as openMainMenu) so
+            // click slot ↔ category index stays aligned after permission filter
+            List<Category> categories = plugin.getCategories().getVisibleCategories(player);
             int index = slot - MAIN_CAT_START;
             if (index >= 0 && index < categories.size()) {
                 playSound(player, "navigate", Sound.UI_BUTTON_CLICK);
@@ -291,20 +265,17 @@ public class ShopGUI implements Listener {
         String categoryId = holder.getCategoryId();
         int page = holder.getPage();
 
-        // Back button
         if (slot == SLOT_BACK) {
             playSound(player, "navigate", Sound.UI_BUTTON_CLICK);
             openMainMenu(player);
             return;
         }
 
-        // Buy currency button
         if (slot == SLOT_BUY_CURRENCY) {
             sendPremiumUrl(player);
             return;
         }
 
-        // Pagination
         if (slot == SLOT_PREV_PAGE && page > 0) {
             openCategory(player, categoryId, page - 1);
             return;
@@ -314,7 +285,6 @@ public class ShopGUI implements Listener {
             return;
         }
 
-        // Product click
         if (slot >= PRODUCTS_START && slot <= PRODUCTS_END) {
             Category category = plugin.getCategories().getCategory(categoryId);
             if (category == null) return;
@@ -346,7 +316,6 @@ public class ShopGUI implements Listener {
                     "price", String.valueOf(product.getPrice()),
                     "balance", plugin.getLang().formatAmount(newBalance)));
                 playSound(player, "purchase-success", Sound.ENTITY_PLAYER_LEVELUP);
-                // Return to category
                 Bukkit.getScheduler().runTask(plugin, () ->
                     openCategory(player, holder.getCategoryId(), holder.getPage()));
             }
@@ -356,7 +325,6 @@ public class ShopGUI implements Listener {
                     "price", String.valueOf(product.getPrice()),
                     "balance", plugin.getLang().formatAmount(balance)));
                 playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
-                // Return to category
                 Bukkit.getScheduler().runTask(plugin, () ->
                     openCategory(player, holder.getCategoryId(), holder.getPage()));
             }
@@ -368,10 +336,17 @@ public class ShopGUI implements Listener {
                 player.sendMessage(plugin.getLang().component("shop.purchase-failed"));
                 playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
             }
+            // SESJA-2: added Result values handled gracefully (no UI break)
+            case NO_PERMISSION -> {
+                player.sendMessage(plugin.getLang().component("no-permission"));
+                playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
+            }
+            case CANCELLED -> {
+                player.sendMessage(plugin.getLang().component("shop.purchase-failed"));
+                playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
+            }
         }
     }
-
-    // ── GUI element builders ──────────────────────────────────
 
     private ItemStack buildBalanceButton(Player player) {
         long balance = plugin.getCurrency().getBalance(player);
@@ -433,7 +408,6 @@ public class ShopGUI implements Listener {
         String text = plugin.getLang().getRaw("gui.page-info",
             "current", String.valueOf(current),
             "total", String.valueOf(total));
-        // getRaw doesn't exist on LangManager, use getRaw via lang key
         meta.displayName(colorize(text));
         item.setItemMeta(meta);
         return item;
@@ -479,7 +453,6 @@ public class ShopGUI implements Listener {
         if (!url.isEmpty()) {
             player.sendMessage(plugin.getLang().colorize(
                 plugin.getLang().getRaw("shop.buy-currency-url", "url", url)));
-            // Send clickable URL in chat
             Component urlComponent = Component.text(url)
                 .clickEvent(ClickEvent.openUrl(url))
                 .color(net.kyori.adventure.text.format.NamedTextColor.AQUA);

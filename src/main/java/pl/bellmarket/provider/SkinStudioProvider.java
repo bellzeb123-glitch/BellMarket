@@ -1,27 +1,14 @@
 /*
- * BellMarket - SkinStudioProvider
+ * BellMarket - SkinStudioProvider (SESJA-2)
  *
- * GENERIC version (sellable). Works on ANY SkinStudio config without hardcoded
- * tier lists. Server-specific customisation lives in a dedicated config file:
- *
- *     plugins/BellMarket/providers/skinstudio.yml
- *
- * which is auto-created on first run with sensible defaults and helpful comments.
- *
- * Detection (when admin doesn't override in config):
- *   - tier        = prefix before first underscore in skin key
- *   - tier color  = extracted from SkinStudio display-name (the &X code inside [...])
- *   - tier icon   = stained-glass pane matching the detected colour
- *   - tier name   = Capitalize(tier-key)
- *   - product name= taken verbatim from SkinStudio display-name
- *   - product icon material = first entry in skin's item-types
- *   - product 3D model = item-model from SkinStudio
- *
- * Pricing priority:
- *   1. skin-prices.<skinKey> (per-skin override)
- *   2. tiers.<tier>.default-price (per-tier default)
- *   3. default-price (global default)
- *   4. provider config default-price (from main config.yml)
+ * Changes from Sesja 1.2:
+ *   + Auto-populated skinstudio.yml template on first run:
+ *       - tiers: ALL detected tiers pre-listed with auto-detected metadata
+ *         (admin can edit any default-price / color / icon directly)
+ *       - skin-prices: {} empty BUT followed by commented examples for
+ *         EVERY detected skin grouped by tier (admin uncomments to override)
+ *   + Template generation respects detected SkinStudio config — works on
+ *     any server, not just bellzeb's
  */
 package pl.bellmarket.provider;
 
@@ -37,16 +24,17 @@ import pl.bellmarket.model.Product;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.util.*;
 
 public class SkinStudioProvider implements ProductProvider {
 
     private final BellMarket plugin;
 
-    /** Mapping from Minecraft colour code → matching stained glass pane material. */
+    /** Detected/configured metadata for one tier. */
+    private record TierMeta(String displayName, String color, Material icon, long defaultPrice) {}
+
+    /** Color code → matching stained glass pane. */
     private static final Map<String, Material> COLOR_TO_GLASS = new HashMap<>();
     static {
         COLOR_TO_GLASS.put("&0", Material.BLACK_STAINED_GLASS_PANE);
@@ -85,79 +73,70 @@ public class SkinStudioProvider implements ProductProvider {
         if (sk == null) return Collections.emptyList();
 
         File skinConfigFile = new File(sk.getDataFolder(), "config.yml");
-        if (!skinConfigFile.exists()) {
-            plugin.getLogger().warning("[SkinStudioProvider] SkinStudio config.yml missing");
-            return Collections.emptyList();
-        }
+        if (!skinConfigFile.exists()) return Collections.emptyList();
         FileConfiguration skinCfg = YamlConfiguration.loadConfiguration(skinConfigFile);
         ConfigurationSection skins = skinCfg.getConfigurationSection("skins");
-        if (skins == null) {
-            plugin.getLogger().warning("[SkinStudioProvider] No 'skins' section in SkinStudio config");
-            return Collections.emptyList();
+        if (skins == null) return Collections.emptyList();
+
+        // Step 1: Group skins by tier prefix
+        Map<String, List<String>> skinsByTier = new LinkedHashMap<>();
+        for (String skinKey : skins.getKeys(false)) {
+            skinsByTier.computeIfAbsent(tierOf(skinKey), k -> new ArrayList<>()).add(skinKey);
+        }
+        List<String> orderedTiers = new ArrayList<>(skinsByTier.keySet());
+        Collections.sort(orderedTiers);
+
+        // Step 2: Auto-detect each tier's metadata (color, icon, display-name)
+        Map<String, TierMeta> autoDetected = new LinkedHashMap<>();
+        for (String tier : orderedTiers) {
+            String firstSkin = skinsByTier.get(tier).get(0);
+            String firstDisplay = skins.getString(firstSkin + ".display-name", "");
+            String color = detectTierColor(firstDisplay);
+            Material icon = COLOR_TO_GLASS.getOrDefault(color, Material.LIGHT_GRAY_STAINED_GLASS_PANE);
+            String displayName = detectTierDisplayName(firstDisplay, tier);
+            autoDetected.put(tier, new TierMeta(displayName, color, icon, defaultPrice));
         }
 
-        // Load (or create) the per-server price/customisation file
-        FileConfiguration provCfg = loadOrCreateProviderConfig();
+        // Step 3: Load or create the per-server config file
+        FileConfiguration provCfg = loadOrCreateProviderConfig(autoDetected, skinsByTier, defaultPrice);
         long globalDefault = provCfg.getLong("default-price", defaultPrice);
         ConfigurationSection tiersCfg     = provCfg.getConfigurationSection("tiers");
         ConfigurationSection skinPricesCfg = provCfg.getConfigurationSection("skin-prices");
         boolean includeChange = plugin.getConfig().getBoolean(
             "providers.skinstudio.include-change-token", false);
 
-        // Group skins by tier prefix
-        Map<String, List<String>> byTier = new LinkedHashMap<>();
-        for (String skinKey : skins.getKeys(false)) {
-            byTier.computeIfAbsent(tierOf(skinKey), k -> new ArrayList<>()).add(skinKey);
-        }
-
-        // Order tiers alphabetically for stable display
-        List<String> tierOrder = new ArrayList<>(byTier.keySet());
-        Collections.sort(tierOrder);
-
+        // Step 4: Build categories — admin overrides from provCfg take precedence over auto-detected
         List<Category> out = new ArrayList<>();
         int orderCursor = 10;
-        for (String tier : tierOrder) {
-            List<String> tierSkins = byTier.get(tier);
-
-            // Per-tier override (or auto-detect)
+        for (String tier : orderedTiers) {
+            TierMeta auto = autoDetected.get(tier);
             ConfigurationSection tierCfg = tiersCfg != null ? tiersCfg.getConfigurationSection(tier) : null;
 
-            // Auto-detect color from first skin in this tier
-            String firstSkinKey = tierSkins.get(0);
-            String firstDisplay = skins.getString(firstSkinKey + ".display-name", "");
-            String autoColor = detectTierColor(firstDisplay);
-
-            String tierColor   = tierCfg != null ? tierCfg.getString("color", autoColor) : autoColor;
-            String tierDisplay = tierCfg != null ? tierCfg.getString("display-name", capitalize(tier)) : capitalize(tier);
+            String tierColor   = tierCfg != null ? tierCfg.getString("color", auto.color()) : auto.color();
+            String tierDisplay = tierCfg != null ? tierCfg.getString("display-name", auto.displayName()) : auto.displayName();
             Material tierIcon  = parseMaterial(
                 tierCfg != null ? tierCfg.getString("icon") : null,
-                COLOR_TO_GLASS.getOrDefault(tierColor, Material.LIGHT_GRAY_STAINED_GLASS_PANE));
+                COLOR_TO_GLASS.getOrDefault(tierColor, auto.icon()));
             long tierDefaultPrice = tierCfg != null
                 ? tierCfg.getLong("default-price", globalDefault)
                 : globalDefault;
 
-            // Build products for this tier
             List<Product> products = new ArrayList<>();
-            for (String skinKey : tierSkins) {
+            for (String skinKey : skinsByTier.get(tier)) {
                 ConfigurationSection sd = skins.getConfigurationSection(skinKey);
                 if (sd == null) continue;
-
-                // Price priority: skin-prices override → tier default → global default
-                long price = skinPricesCfg != null && skinPricesCfg.contains(skinKey)
+                long price = (skinPricesCfg != null && skinPricesCfg.contains(skinKey))
                     ? skinPricesCfg.getLong(skinKey)
                     : tierDefaultPrice;
-
                 Product p = buildSkinProduct(skinKey, sd, price, includeChange, tierColor, tierDisplay);
                 if (p != null) products.add(p);
             }
             if (products.isEmpty()) continue;
 
-            // Resolve category lore through LangManager (en/pl)
             List<String> catLore;
             try {
                 catLore = plugin.getLang().getList("provider.skinstudio.category-lore",
-                    "color", tierColor,
-                    "tier",  tierDisplay,
+                    "color", tierColor, "tier", tierDisplay,
                     "count", String.valueOf(products.size()));
                 if (catLore == null || catLore.isEmpty()) catLore = defaultCategoryLore(tierColor, tierDisplay, products.size());
             } catch (Throwable t) {
@@ -165,134 +144,145 @@ public class SkinStudioProvider implements ProductProvider {
             }
 
             String catName = tierColor + "✦ " + tierDisplay;
-
-            Category cat = new Category(
-                "skinstudio_" + tier,    // id
-                catName,                  // name (raw with color)
-                tierDisplay,              // displayName
-                orderCursor,              // order
-                true,                     // enabled
-                tierIcon,                 // icon material (STAINED GLASS PANE)
-                catName,                  // icon name
-                catLore,                  // icon lore
-                products                  // products
-            );
-            out.add(cat);
+            out.add(new Category(
+                "skinstudio_" + tier, catName, tierDisplay,
+                orderCursor, true, tierIcon, catName, catLore, products
+            ));
             orderCursor += 10;
         }
-
         return out;
     }
 
     private Product buildSkinProduct(String skinKey, ConfigurationSection sd,
                                      long price, boolean includeChange,
                                      String tierColor, String tierDisplay) {
-        // From SkinStudio config
         String productName = sd.getString("display-name", capitalize(skinKey.replace('_', ' ')));
         String itemModel = sd.getString("item-model", null);
         List<String> itemTypes = sd.getStringList("item-types");
-
-        // Icon material = first item-type from SkinStudio
         Material iconMat = Material.PAPER;
         if (!itemTypes.isEmpty()) {
-            try {
-                iconMat = Material.valueOf(itemTypes.get(0).toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException ignored) {}
+            try { iconMat = Material.valueOf(itemTypes.get(0).toUpperCase(Locale.ROOT)); }
+            catch (IllegalArgumentException ignored) {}
         }
-
-        // Product lore through LangManager
         List<String> lore;
         try {
             lore = plugin.getLang().getList("provider.skinstudio.product-lore",
-                "skin-id",  skinKey,
-                "tier",     tierDisplay,
-                "color",    tierColor,
-                "price",    String.valueOf(price),
-                "currency", safeCurrencyName());
+                "skin-id", skinKey, "tier", tierDisplay, "color", tierColor,
+                "price", String.valueOf(price), "currency", safeCurrencyName());
             if (lore == null || lore.isEmpty()) lore = defaultProductLore(skinKey, tierColor, tierDisplay, price);
         } catch (Throwable t) {
             lore = defaultProductLore(skinKey, tierColor, tierDisplay, price);
         }
-
         return new Product.Builder()
             .id("skinstudio_" + skinKey)
             .type(Product.Type.SKIN_TOKEN)
-            .name(productName)
-            .lore(lore)
-            .price(price)
-            .enabled(true)
-            .iconMaterial(iconMat)
-            .iconItemModel(itemModel)
-            .skinId(skinKey)
-            .includeChangeToken(includeChange)
-            .currency(Currency.BELLCOINS)
-            .providerSource("skinstudio")
+            .name(productName).lore(lore).price(price).enabled(true)
+            .iconMaterial(iconMat).iconItemModel(itemModel)
+            .skinId(skinKey).includeChangeToken(includeChange)
+            .currency(Currency.BELLCOINS).providerSource("skinstudio")
             .build();
     }
 
     /**
-     * Loads plugins/BellMarket/providers/skinstudio.yml, creating it from the
-     * bundled template on first run.
+     * Loads the per-server skinstudio.yml — generates a FULL template on
+     * first run, pre-populated with detected tiers and commented examples
+     * for every detected skin.
      */
-    private FileConfiguration loadOrCreateProviderConfig() {
-        File providersDir = new File(plugin.getDataFolder(), "providers");
-        if (!providersDir.exists()) providersDir.mkdirs();
-        File f = new File(providersDir, "skinstudio.yml");
-
+    private FileConfiguration loadOrCreateProviderConfig(
+            Map<String, TierMeta> tiers, Map<String, List<String>> skinsByTier, long defaultPrice) {
+        File dir = new File(plugin.getDataFolder(), "providers");
+        if (!dir.exists()) dir.mkdirs();
+        File f = new File(dir, "skinstudio.yml");
         if (!f.exists()) {
-            // Copy bundled template if present; otherwise write a minimal default
-            try (InputStream in = plugin.getResource("providers/skinstudio.yml")) {
-                if (in != null) {
-                    Files.copy(in, f.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    plugin.getLogger().info("[SkinStudioProvider] Created default providers/skinstudio.yml");
-                } else {
-                    writeMinimalTemplate(f);
-                    plugin.getLogger().info("[SkinStudioProvider] Wrote minimal providers/skinstudio.yml");
-                }
+            try {
+                Files.writeString(f.toPath(), buildTemplate(tiers, skinsByTier, defaultPrice));
+                plugin.getLogger().info("[SkinStudioProvider] Generated providers/skinstudio.yml with "
+                    + tiers.size() + " tiers and " + countSkins(skinsByTier) + " skin entries");
             } catch (IOException e) {
-                plugin.getLogger().warning("[SkinStudioProvider] Could not create skinstudio.yml: " + e.getMessage());
+                plugin.getLogger().warning("[SkinStudioProvider] Failed to write skinstudio.yml: " + e.getMessage());
             }
         }
-
         return YamlConfiguration.loadConfiguration(f);
     }
 
-    private void writeMinimalTemplate(File f) throws IOException {
-        String template = """
-            # BellMarket - SkinStudio Provider Configuration
-            # Auto-generated on first run. Edit freely — changes apply on /bm reload.
-            #
-            # Pricing priority:
-            #   1. skin-prices.<key>       (specific override, highest priority)
-            #   2. tiers.<name>.default-price
-            #   3. default-price           (global default below)
+    /** Generates the full YAML template string. */
+    private String buildTemplate(Map<String, TierMeta> tiers, Map<String, List<String>> skinsByTier, long defaultPrice) {
+        StringBuilder sb = new StringBuilder(4096);
+        sb.append("# ==============================================================\n");
+        sb.append("#  BellMarket - SkinStudio Provider Configuration\n");
+        sb.append("# ==============================================================\n");
+        sb.append("# Auto-generated on first run. Re-generated if you delete this file.\n");
+        sb.append("# Edit freely — changes apply on /bm reload (no restart needed).\n");
+        sb.append("#\n");
+        sb.append("# Pricing priority (highest → lowest):\n");
+        sb.append("#   1. skin-prices.<skin-key>          (per-skin override)\n");
+        sb.append("#   2. tiers.<tier-name>.default-price (per-tier default)\n");
+        sb.append("#   3. default-price                   (global default below)\n");
+        sb.append("# ==============================================================\n\n");
 
-            default-price: 500
+        sb.append("# Global default price for any skin without a tier or per-skin entry\n");
+        sb.append("default-price: ").append(defaultPrice).append("\n\n");
 
-            # Per-tier customisation (OPTIONAL). A tier = prefix before first underscore
-            # in skin key. Plugin auto-detects color/icon/name from SkinStudio config
-            # if the tier is not listed here.
-            #
-            # Example:
-            # tiers:
-            #   bronze:
-            #     display-name: "Bronze"
-            #     color: "&6"
-            #     icon: ORANGE_STAINED_GLASS_PANE
-            #     default-price: 300
-            tiers: {}
+        sb.append("# ─── TIERS ────────────────────────────────────────────────────\n");
+        sb.append("# A tier = prefix before first underscore in skin keys.\n");
+        sb.append("# All ").append(tiers.size()).append(" detected tiers are listed below with\n");
+        sb.append("# auto-detected metadata. Edit any value to override:\n");
+        sb.append("#   default-price → price for ALL skins of this tier (unless\n");
+        sb.append("#                   overridden per-skin in skin-prices below)\n");
+        sb.append("#   color         → tier color code (matches stained glass icon)\n");
+        sb.append("#   icon          → category icon material in shop GUI\n");
+        sb.append("#   display-name  → category name shown to players\n");
+        sb.append("# ──────────────────────────────────────────────────────────────\n");
+        sb.append("tiers:\n");
+        for (Map.Entry<String, TierMeta> e : tiers.entrySet()) {
+            TierMeta m = e.getValue();
+            sb.append("  ").append(e.getKey()).append(":\n");
+            sb.append("    display-name: \"").append(m.displayName()).append("\"\n");
+            sb.append("    color: \"").append(m.color()).append("\"\n");
+            sb.append("    icon: ").append(m.icon().name()).append("\n");
+            sb.append("    default-price: ").append(m.defaultPrice()).append("\n");
+        }
+        sb.append("\n");
 
-            # Per-skin price overrides (highest priority).
-            # Example:
-            # skin-prices:
-            #   bronze_sword: 250
-            #   ultimatium_dragon_sword: 5000
-            skin-prices: {}
-            """;
-        Files.writeString(f.toPath(), template);
+        sb.append("# ─── PER-SKIN PRICE OVERRIDES ─────────────────────────────────\n");
+        sb.append("# This section is empty by default — all skins use their tier's\n");
+        sb.append("# default-price above. To set a custom price for a specific skin,\n");
+        sb.append("# UNCOMMENT the relevant line below (remove the leading '# ').\n");
+        sb.append("#\n");
+        sb.append("# Every detected skin is listed below for easy editing. The values\n");
+        sb.append("# shown after ':' are the current tier defaults — change them to\n");
+        sb.append("# whatever you want.\n");
+        sb.append("# ──────────────────────────────────────────────────────────────\n");
+        sb.append("skin-prices: {}\n\n");
+
+        // Commented examples grouped by tier — one block per tier
+        for (Map.Entry<String, List<String>> e : skinsByTier.entrySet()) {
+            String tier = e.getKey();
+            TierMeta meta = tiers.get(tier);
+            List<String> tierSkins = new ArrayList<>(e.getValue());
+            Collections.sort(tierSkins);
+            sb.append("# ─── ").append(meta.displayName())
+              .append(" (").append(tierSkins.size()).append(" skins) ───\n");
+            sb.append("# Uncomment any line to set a custom price for that skin:\n");
+            for (String skin : tierSkins) {
+                sb.append("#   ").append(skin).append(": ").append(meta.defaultPrice()).append("\n");
+            }
+            sb.append("#\n");
+        }
+
+        sb.append("# ──────────────────────────────────────────────────────────────\n");
+        sb.append("# Editing tip: to enable a per-skin price, move the line ABOVE\n");
+        sb.append("# the comments, under 'skin-prices:'. Example:\n");
+        sb.append("#\n");
+        sb.append("# skin-prices:\n");
+        sb.append("#   bronze_sword: 150\n");
+        sb.append("#   ultimatium_dragon_sword: 5000\n");
+        sb.append("# ──────────────────────────────────────────────────────────────\n");
+
+        return sb.toString();
     }
 
-    // ─── helpers ──────────────────────────────────────────────────────────
+    // ─── Detection helpers ────────────────────────────────────────────────
 
     private static String tierOf(String skinKey) {
         int us = skinKey.indexOf('_');
@@ -300,10 +290,27 @@ public class SkinStudioProvider implements ProductProvider {
     }
 
     /**
-     * Extracts the tier colour from a display-name like
-     * "&8[&6Bronze&8] &fSkin Token: Sword" → "&6".
-     * Looks for the first colour code AFTER "&8[".
-     * Falls back to the first non-frame colour code, then "&7".
+     * Extracts the tier display-name from a SkinStudio display-name like
+     * "&8[&6Brąz&8] &fToken Skina: Miecz" → "Brąz".
+     * Falls back to Capitalize(tier-key).
+     */
+    private static String detectTierDisplayName(String displayName, String tierKey) {
+        if (displayName != null) {
+            int openBracket = displayName.indexOf('[');
+            int closeBracket = displayName.indexOf(']');
+            if (openBracket >= 0 && closeBracket > openBracket) {
+                String inside = displayName.substring(openBracket + 1, closeBracket);
+                // strip color codes
+                String clean = inside.replaceAll("&[0-9a-fA-Fk-oK-OrR]", "").trim();
+                if (!clean.isEmpty()) return clean;
+            }
+        }
+        return capitalize(tierKey);
+    }
+
+    /**
+     * Extracts the tier color from "&8[&6Tier&8] ..." → "&6".
+     * Falls back to first non-frame color, then "&7".
      */
     private static String detectTierColor(String displayName) {
         if (displayName == null || displayName.isEmpty()) return "&7";
@@ -315,7 +322,6 @@ public class SkinStudioProvider implements ProductProvider {
                 if (COLOR_TO_GLASS.containsKey(code)) return code;
             }
         }
-        // Fallback: first non-frame colour code
         for (int i = 0; i < displayName.length() - 1; i++) {
             if (displayName.charAt(i) == '&') {
                 char c = Character.toLowerCase(displayName.charAt(i + 1));
@@ -330,11 +336,8 @@ public class SkinStudioProvider implements ProductProvider {
 
     private static Material parseMaterial(String name, Material fallback) {
         if (name == null || name.isEmpty()) return fallback;
-        try {
-            return Material.valueOf(name.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            return fallback;
-        }
+        try { return Material.valueOf(name.toUpperCase(Locale.ROOT)); }
+        catch (IllegalArgumentException e) { return fallback; }
     }
 
     private static String capitalize(String s) {
@@ -350,12 +353,15 @@ public class SkinStudioProvider implements ProductProvider {
         return sb.toString().trim();
     }
 
+    private static int countSkins(Map<String, List<String>> m) {
+        int t = 0; for (List<String> v : m.values()) t += v.size(); return t;
+    }
+
     private String safeCurrencyName() {
         try { return plugin.getLang().getCurrencyName(); }
         catch (Throwable t) { return "BellCoins"; }
     }
 
-    // Hard-coded English fallbacks — only used if lang file is missing the keys
     private static List<String> defaultProductLore(String skinKey, String color, String tier, long price) {
         return List.of(
             "&7Skin ID: &8" + skinKey,

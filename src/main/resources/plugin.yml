@@ -8,35 +8,54 @@ authors: [BellMarket]
 commands:
   bellmarket:
     description: Opens the BellMarket shop
-    usage: /bellmarket [admin]
+    usage: /bellmarket [admin|reload|generate|lang|prices]
     aliases: [bm, shop]
   bellcoins:
     description: Manage BellCoins currency
     usage: /bellcoins <balance|give|take|set|top> [player] [amount]
     aliases: [bc, coins]
+  vt:
+    description: Manage VIP Tokens
+    usage: /vt <balance|give|take|set|top> [player] [amount]
+    aliases: [viptokens, vtoken]
 
 permissions:
   bellmarket.shop:
     description: Allows opening the shop
     default: true
   bellmarket.admin:
-    description: Allows admin commands and panel
+    description: Allows admin commands, panel and price editor
     default: op
+  bellmarket.vip:
+    description: Grants visibility & purchase rights for VIP-exclusive products
+    default: false
   bellmarket.coins.balance:
-    description: Check own balance
+    description: Check own BellCoins balance
     default: true
   bellmarket.coins.balance.others:
-    description: Check other players balance
+    description: Check other players' BellCoins balance
     default: op
   bellmarket.coins.give:
-    description: Give coins to players
+    description: Give BellCoins to players
     default: op
   bellmarket.coins.take:
-    description: Take coins from players
+    description: Take BellCoins from players
     default: op
   bellmarket.coins.set:
-    description: Set player coins
+    description: Set player BellCoins
     default: op
   bellmarket.coins.top:
-    description: View coins leaderboard
+    description: View BellCoins leaderboard
+    default: true
+  bellmarket.viptoken.balance:
+    description: Check own VIP Tokens balance
+    default: true
+  bellmarket.viptoken.balance.others:
+    description: Check other players' VIP Tokens balance
+    default: op
+  bellmarket.viptoken.admin:
+    description: Give / take / set VIP Tokens
+    default: op
+  bellmarket.viptoken.top:
+    description: View VIP Tokens leaderboard
     default: true

@@ -1,10 +1,11 @@
 /*
- * BellMarket - Main plugin class
+ * BellMarket - Main plugin class (SESJA-2)
  *
- * SESJA-1 INCLUDED: VipTokenManager + ProductProviderRegistry + SkinStudioProvider
- * + BellMarketAPI initialisation + reload event firing + provider category merge.
+ * Sesja 2 additions:
+ *   + Registers /vt (VipTokenCommand)
+ *   + Registers PriceEditorGUI as Listener (handles its own click + chat events)
  *
- * This file is a complete drop-in replacement.
+ * Everything else unchanged from Sesja 1.
  */
 package pl.bellmarket;
 
@@ -15,6 +16,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import pl.bellmarket.api.BellMarketAPI;
 import pl.bellmarket.command.BellCoinsCommand;
 import pl.bellmarket.command.BellMarketCommand;
+import pl.bellmarket.command.VipTokenCommand;
 import pl.bellmarket.config.CategoryManager;
 import pl.bellmarket.config.LangManager;
 import pl.bellmarket.currency.CurrencyManager;
@@ -35,17 +37,13 @@ public class BellMarket extends JavaPlugin {
     private CurrencyManager currencyManager;
     private CategoryManager categoryManager;
     private ShopGUI shopGUI;
-
-    // ── SESJA-1 additions ─────────────────────────────────────────────────
     private VipTokenManager vipTokens;
     private ProductProviderRegistry providerRegistry;
-    // ──────────────────────────────────────────────────────────────────────
 
     @Override
     public void onEnable() {
         instance = this;
 
-        // Save default config + bundled resources
         saveDefaultConfig();
         saveResource("lang/en.yml", false);
         saveResource("lang/pl.yml", false);
@@ -59,24 +57,15 @@ public class BellMarket extends JavaPlugin {
         this.categoryManager = new CategoryManager(this);
         this.shopGUI         = new ShopGUI(this);
 
-        // ── SESJA-1: new managers ─────────────────────────────────────────
+        // Sesja 1 additions
         this.vipTokens        = new VipTokenManager(this);
         this.providerRegistry = new ProductProviderRegistry(this);
-
-        // Register built-in providers
         providerRegistry.register(new SkinStudioProvider(this));
-        // Future: providerRegistry.register(new MythicMobsProvider(this));
-        // Future: providerRegistry.register(new EliteMobsProvider(this));
-        // Future: providerRegistry.register(new FreeMinecraftModelsProvider(this));
-
-        // Initialise public API (must come AFTER managers + registry are created)
         BellMarketAPI.init(this, providerRegistry);
 
-        // Run providers once at startup to populate provider-driven categories
         for (Category c : providerRegistry.generateAll()) {
             categoryManager.getCategories().add(c);
         }
-        // ──────────────────────────────────────────────────────────────────
 
         // Commands
         BellMarketCommand bmCmd = new BellMarketCommand(this);
@@ -87,12 +76,21 @@ public class BellMarket extends JavaPlugin {
         PluginCommand bellcoinsCmd = getCommand("bellcoins");
         if (bellcoinsCmd != null) bellcoinsCmd.setExecutor(bcCmd);
 
+        // SESJA-2: /vt command
+        VipTokenCommand vtCmd = new VipTokenCommand(this);
+        PluginCommand vtCommand = getCommand("vt");
+        if (vtCommand != null) {
+            vtCommand.setExecutor(vtCmd);
+            vtCommand.setTabCompleter(vtCmd);
+        }
+
         // Listeners
         PluginManager pm = getServer().getPluginManager();
         pm.registerEvents(new PlayerListener(this), this);
         pm.registerEvents(new AdminChatListener(this, bmCmd.getAdminGUI()), this);
+        // SESJA-2: PriceEditorGUI is its own Listener
+        pm.registerEvents(bmCmd.getPriceEditor(), this);
 
-        // Startup banner
         getLogger().info("BellMarket v" + getDescription().getVersion() + " enabled!");
         getLogger().info("Currency: " + getConfig().getString("currency.name", "BellCoins"));
         getLogger().info("Categories loaded: " + categoryManager.getCategories().size());
@@ -110,22 +108,14 @@ public class BellMarket extends JavaPlugin {
         langManager.reload();
         currencyManager.reload();
         vipTokens.reload();
-
-        // ── SESJA-1: fire PRE_PROVIDERS so external plugins can re-register ─
         Bukkit.getPluginManager().callEvent(
             new BellMarketReloadEvent(BellMarketReloadEvent.Phase.PRE_PROVIDERS));
-        // ────────────────────────────────────────────────────────────────────
-
         categoryManager.reload();
-
-        // ── SESJA-1: merge provider-generated categories into the catalog ───
         for (Category c : providerRegistry.generateAll()) {
             categoryManager.getCategories().add(c);
         }
-
         Bukkit.getPluginManager().callEvent(
             new BellMarketReloadEvent(BellMarketReloadEvent.Phase.POST_PROVIDERS));
-        // ────────────────────────────────────────────────────────────────────
     }
 
     public static BellMarket getInstance()         { return instance; }
@@ -133,9 +123,6 @@ public class BellMarket extends JavaPlugin {
     public CurrencyManager getCurrency()           { return currencyManager; }
     public CategoryManager getCategories()         { return categoryManager; }
     public ShopGUI getShopGUI()                    { return shopGUI; }
-
-    // ── SESJA-1 getters ───────────────────────────────────────────────────
-    public VipTokenManager        getVipTokens()        { return vipTokens; }
+    public VipTokenManager getVipTokens()          { return vipTokens; }
     public ProductProviderRegistry getProviderRegistry() { return providerRegistry; }
-    // ──────────────────────────────────────────────────────────────────────
 }

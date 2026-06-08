@@ -1,22 +1,19 @@
 /*
- * BellMarket - CategoryManager
+ * BellMarket - CategoryManager (SESJA-2)
  *
- * Loads category YAML files from plugins/BellMarket/categories/ and parses
- * each into a Category object containing Products.
+ * Sesja 2 additions:
+ *   + Permission map: tracks `category.required-permission` from YAML per category id
+ *   + canSee(Player, Category) helper used by ShopGUI to hide gated categories
+ *   + getVisibleCategories(Player) convenience method
  *
- * SESJA-1 INCLUDED:
- *   + Parses new YAML field `currency` (default: bellcoins)
- *   + Parses new YAML field `required-permission` (default: null)
- *   + Sets Product.providerSource = "manual" for file-loaded products
- *   + Handles new Product.Type.VIP_EXCLUSIVE (delivers via commands list)
- *
- * This file is a complete drop-in replacement.
+ * Existing behaviour preserved unchanged.
  */
 package pl.bellmarket.config;
 
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import pl.bellmarket.BellMarket;
 import pl.bellmarket.currency.Currency;
@@ -24,16 +21,15 @@ import pl.bellmarket.model.Category;
 import pl.bellmarket.model.Product;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class CategoryManager {
 
     private final BellMarket plugin;
     private final List<Category> categories = new ArrayList<>();
+    /** SESJA-2: maps category id → required permission (null = visible to all). */
+    private final Map<String, String> categoryPermissions = new HashMap<>();
     private File categoriesDir;
 
     public CategoryManager(BellMarket plugin) {
@@ -43,6 +39,7 @@ public class CategoryManager {
 
     public void reload() {
         categories.clear();
+        categoryPermissions.clear();
         categoriesDir = new File(plugin.getDataFolder(), "categories");
         if (!categoriesDir.exists()) {
             categoriesDir.mkdirs();
@@ -53,8 +50,6 @@ public class CategoryManager {
             plugin.getLogger().warning("No category files found in categories/");
             return;
         }
-
-        // Stable order by filename
         Arrays.sort(files, Comparator.comparing(File::getName));
 
         for (File file : files) {
@@ -67,10 +62,7 @@ public class CategoryManager {
                 plugin.getLogger().warning("Error loading category " + file.getName() + ": " + e.getMessage());
             }
         }
-
-        // Sort categories by their `order` field (low to high)
         categories.sort(Comparator.comparingInt(Category::getOrder));
-
         plugin.getLogger().info("Categories loaded: " + categories.size());
     }
 
@@ -88,23 +80,26 @@ public class CategoryManager {
         int    order       = cat.getInt("order", 0);
         boolean enabled    = cat.getBoolean("enabled", true);
 
-        // Icon
+        // SESJA-2: track required-permission per category id
+        String requiredPerm = cat.getString("required-permission", null);
+        if (requiredPerm != null && !requiredPerm.isEmpty()) {
+            categoryPermissions.put(id, requiredPerm);
+        }
+
         Material iconMat = Material.PAPER;
         String iconName  = null;
         List<String> iconLore = new ArrayList<>();
         ConfigurationSection iconSec = cat.getConfigurationSection("icon");
         if (iconSec != null) {
             String matName = iconSec.getString("material", "PAPER");
-            try {
-                iconMat = Material.valueOf(matName.toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException e) {
+            try { iconMat = Material.valueOf(matName.toUpperCase(Locale.ROOT)); }
+            catch (IllegalArgumentException e) {
                 plugin.getLogger().warning("Invalid material: " + matName);
             }
             iconName = iconSec.getString("name");
             iconLore = iconSec.getStringList("lore");
         }
 
-        // Products
         List<Product> ps = new ArrayList<>();
         ConfigurationSection productsSec = config.getConfigurationSection("products");
         if (productsSec != null) {
@@ -122,9 +117,8 @@ public class CategoryManager {
     private Product loadProduct(String productId, ConfigurationSection sec) {
         String typeName = sec.getString("type", "ITEM");
         Product.Type type;
-        try {
-            type = Product.Type.valueOf(typeName.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
+        try { type = Product.Type.valueOf(typeName.toUpperCase(Locale.ROOT)); }
+        catch (IllegalArgumentException e) {
             plugin.getLogger().warning("Unknown product type: " + typeName + " for product: " + productId);
             return null;
         }
@@ -134,34 +128,24 @@ public class CategoryManager {
         List<String> lore = sec.getStringList("lore");
         boolean enabled = sec.getBoolean("enabled", true);
 
-        // Icon (per-product, overrides category icon in the slot)
         Material iconMat   = Material.PAPER;
         String iconModel   = null;
         String iconNameStr = null;
         ConfigurationSection iconSec = sec.getConfigurationSection("icon");
         if (iconSec != null) {
             String matName = iconSec.getString("material", "PAPER");
-            try {
-                iconMat = Material.valueOf(matName.toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException e) {
+            try { iconMat = Material.valueOf(matName.toUpperCase(Locale.ROOT)); }
+            catch (IllegalArgumentException e) {
                 plugin.getLogger().warning("Invalid icon material: " + matName);
             }
-            iconModel  = iconSec.getString("item-model");
+            iconModel   = iconSec.getString("item-model");
             iconNameStr = iconSec.getString("name");
         }
 
         Product.Builder builder = new Product.Builder()
-            .id(productId)
-            .type(type)
-            .name(name)
-            .lore(lore)
-            .price(price)
-            .enabled(enabled)
-            .iconMaterial(iconMat)
-            .iconItemModel(iconModel)
-            .iconName(iconNameStr);
+            .id(productId).type(type).name(name).lore(lore).price(price).enabled(enabled)
+            .iconMaterial(iconMat).iconItemModel(iconModel).iconName(iconNameStr);
 
-        // Type-specific fields
         switch (type) {
             case SKIN_TOKEN -> {
                 builder.skinId(sec.getString("skin-id"));
@@ -185,32 +169,53 @@ public class CategoryManager {
             }
         }
 
-        // ── SESJA-1: parse new fields ─────────────────────────────────────
-        // currency: bellcoins | viptoken (default: bellcoins)
         String currencyRaw = sec.getString("currency", null);
         builder.currency(Currency.parse(currencyRaw));
 
-        // required-permission: gate purchase (default: null = open to all)
         String perm = sec.getString("required-permission", null);
-        if (perm != null && !perm.isEmpty()) {
-            builder.requiredPermission(perm);
-        }
+        if (perm != null && !perm.isEmpty()) builder.requiredPermission(perm);
 
-        // Mark this product as file-loaded (vs provider-generated)
         builder.providerSource("manual");
-        // ──────────────────────────────────────────────────────────────────
-
         return builder.build();
     }
 
-    public List<Category> getCategories() {
-        return categories;
-    }
+    public List<Category> getCategories() { return categories; }
 
     public Category getCategory(String id) {
         return categories.stream()
-            .filter(c -> c.getId().equals(id))
-            .findFirst()
-            .orElse(null);
+            .filter(c -> c.getId().equals(id)).findFirst().orElse(null);
+    }
+
+    // ─── SESJA-2: permission helpers ──────────────────────────────────────
+
+    /** Returns the required permission for a category (null = open to all). */
+    public String getRequiredPermission(String categoryId) {
+        return categoryPermissions.get(categoryId);
+    }
+
+    /** Whether the player can see this category in the shop UI. */
+    public boolean canSee(Player player, Category category) {
+        if (category == null) return false;
+        String perm = categoryPermissions.get(category.getId());
+        return perm == null || player.hasPermission(perm);
+    }
+
+    /** Returns categories the player has permission to see, in display order. */
+    public List<Category> getVisibleCategories(Player player) {
+        return categories.stream()
+            .filter(c -> canSee(player, c))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Records a permission requirement for a category at runtime.
+     * Used by external providers that supply gated categories programmatically.
+     */
+    public void setRequiredPermission(String categoryId, String permission) {
+        if (permission == null || permission.isEmpty()) {
+            categoryPermissions.remove(categoryId);
+        } else {
+            categoryPermissions.put(categoryId, permission);
+        }
     }
 }
