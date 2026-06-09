@@ -46,6 +46,7 @@ public class BellMarket extends JavaPlugin {
     @Override
     public void onEnable() {
         instance = this;
+        printBanner();
 
         saveDefaultConfig();
         saveResource("lang/en.yml", false);
@@ -100,6 +101,22 @@ public class BellMarket extends JavaPlugin {
         getLogger().info("BellMarket v" + getDescription().getVersion() + " enabled!");
         getLogger().info("Currency: " + getConfig().getString("currency.name", "BellCoins"));
         getLogger().info("Categories loaded: " + categoryManager.getCategories().size());
+    }
+
+    private void printBanner() {
+        var c = org.bukkit.Bukkit.getConsoleSender();
+        c.sendMessage("§r");
+        c.sendMessage("§6  ██████╗ ███████╗██╗     ██╗          ");
+        c.sendMessage("§6  ██╔══██╗██╔════╝██║     ██║          ");
+        c.sendMessage("§6  ██████╔╝█████╗  ██║     ██║          ");
+        c.sendMessage("§6  ██╔══██╗██╔══╝  ██║     ██║          ");
+        c.sendMessage("§6  ██████╔╝███████╗███████╗███████╗§r§f Market");
+        c.sendMessage("§6  ╚═════╝ ╚══════╝╚══════╝╚══════╝     ");
+        c.sendMessage("§r");
+        c.sendMessage("§7  Version §f" + getDescription().getVersion()
+            + "  §7│  Author §bBellzeb");
+        c.sendMessage("§7  Status  §aFree §7│ §7Pro §5Coming Soon");
+        c.sendMessage("§r");
     }
 
     @Override

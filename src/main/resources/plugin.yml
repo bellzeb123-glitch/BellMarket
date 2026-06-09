@@ -1,9 +1,10 @@
 name: BellMarket
-version: 1.0.0
+version: 1.26.1.2
 main: pl.bellmarket.BellMarket
 api-version: "26.1.2"
-description: Premium item shop with BellCoins currency system
-authors: [BellMarket]
+description: Universal shop plugin with auto-detection for SkinStudio, MythicMobs, EliteMobs and FMM
+authors: [Bellzeb]
+website: ''
 
 commands:
   bellmarket:
@@ -33,7 +34,7 @@ permissions:
     description: Check own BellCoins balance
     default: true
   bellmarket.coins.balance.others:
-    description: Check other players' BellCoins balance
+    description: Check other players BellCoins balance
     default: op
   bellmarket.coins.give:
     description: Give BellCoins to players
@@ -51,7 +52,7 @@ permissions:
     description: Check own VIP Tokens balance
     default: true
   bellmarket.viptoken.balance.others:
-    description: Check other players' VIP Tokens balance
+    description: Check other players VIP Tokens balance
     default: op
   bellmarket.viptoken.admin:
     description: Give / take / set VIP Tokens
