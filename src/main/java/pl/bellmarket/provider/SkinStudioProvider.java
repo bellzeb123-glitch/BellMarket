@@ -105,6 +105,9 @@ public class SkinStudioProvider implements ProductProvider {
         boolean includeChange = plugin.getConfig().getBoolean(
             "providers.skinstudio.include-change-token", false);
 
+        // FIXES4: global excluded-skins list
+        List<String> globalExcluded = provCfg.getStringList("excluded-skins");
+
         // Step 4: Build categories — admin overrides from provCfg take precedence over auto-detected
         List<Category> out = new ArrayList<>();
         int orderCursor = 10;
@@ -117,6 +120,12 @@ public class SkinStudioProvider implements ProductProvider {
             Material tierIcon  = parseMaterial(
                 tierCfg != null ? tierCfg.getString("icon") : null,
                 COLOR_TO_GLASS.getOrDefault(tierColor, auto.icon()));
+            // FIXES4: skip tier if explicitly disabled
+            if (tierCfg != null && !tierCfg.getBoolean("enabled", true)) {
+                plugin.getLogger().info("[SkinStudioProvider] Tier '" + tierKey + "' disabled in skinstudio.yml, skipping");
+                continue;
+            }
+
             long tierDefaultPrice = tierCfg != null
                 ? tierCfg.getLong("default-price", globalDefault)
                 : globalDefault;
@@ -128,6 +137,10 @@ public class SkinStudioProvider implements ProductProvider {
                 long price = (skinPricesCfg != null && skinPricesCfg.contains(skinKey))
                     ? skinPricesCfg.getLong(skinKey)
                     : tierDefaultPrice;
+                // FIXES4: check per-tier and global excluded-skins
+                List<String> tierExcluded = tierCfg != null ? tierCfg.getStringList("excluded-skins") : List.of();
+                if (globalExcluded.contains(skinKey) || tierExcluded.contains(skinKey)) continue;
+
                 Product p = buildSkinProduct(skinKey, sd, price, includeChange, tierColor, tierDisplay);
                 if (p != null) products.add(p);
             }
@@ -237,10 +250,12 @@ public class SkinStudioProvider implements ProductProvider {
         for (Map.Entry<String, TierMeta> e : tiers.entrySet()) {
             TierMeta m = e.getValue();
             sb.append("  ").append(e.getKey()).append(":\n");
+            sb.append("    enabled: true\n");
             sb.append("    display-name: \"").append(m.displayName()).append("\"\n");
             sb.append("    color: \"").append(m.color()).append("\"\n");
             sb.append("    icon: ").append(m.icon().name()).append("\n");
             sb.append("    default-price: ").append(m.defaultPrice()).append("\n");
+            sb.append("    excluded-skins: []\n");
         }
         sb.append("\n");
 
