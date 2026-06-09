@@ -230,7 +230,7 @@ item-prices: {}
         int tier = Integer.parseInt(tierKey.substring(5));
         return switch (tier) {
             case 1 -> Material.STONE_SWORD; case 2 -> Material.IRON_SWORD;
-            case 3 -> Material.GOLD_SWORD;  case 4 -> Material.DIAMOND_SWORD;
+            case 3 -> Material.GOLDEN_SWORD;  case 4 -> Material.DIAMOND_SWORD;
             case 5 -> Material.DIAMOND_SWORD; case 6 -> Material.NETHERITE_SWORD;
             default -> Material.NETHERITE_SWORD;
         };
