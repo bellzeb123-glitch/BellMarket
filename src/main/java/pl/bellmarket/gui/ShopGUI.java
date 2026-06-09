@@ -1,12 +1,14 @@
 /*
- * BellMarket - ShopGUI (SESJA-2 FIX)
+ * BellMarket - ShopGUI
  *
- * Changes:
- *   1. openMainMenu() → shows ALL categories to ALL players (VIP visible to non-VIP)
- *   2. handleMainMenuClick() → non-VIP clicking VIP category gets "VIP Required" message
- *      instead of entering. OP always enters (OP has all permissions in Bukkit so
- *      player.hasPermission("bellmarket.vip") returns true for OP automatically).
- *   3. Added handling for NO_PERMISSION and CANCELLED purchase results.
+ * CHANGES (this fix):
+ *   1. Slot 7 in top bar = "featured category" shortcut (configurable via
+ *      shop.featured-category-id in config.yml). VIP for you, any category
+ *      for other servers. Non-VIP sees it but gets "VIP required" on click.
+ *      OP passes automatically (has all perms in Bukkit).
+ *   2. Slot 8 (BellCoins buy button) = UNTOUCHED.
+ *   3. Category grid (slots 9-44) = all categories as before.
+ *   4. openMainMenu shows ALL categories (VIP visible to everyone).
  */
 package pl.bellmarket.gui;
 
@@ -15,6 +17,7 @@ import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -36,6 +39,7 @@ import java.util.*;
 
 public class ShopGUI implements Listener {
 
+    // ── Holders ────────────────────────────────────────────────
     public static class ShopHolder implements InventoryHolder {
         private final String categoryId;
         private final int page;
@@ -63,22 +67,24 @@ public class ShopGUI implements Listener {
         public int getPage()                      { return page; }
     }
 
-    private static final int GUI_SIZE         = 54;
-    private static final int PRODUCTS_START   = 18;
-    private static final int PRODUCTS_END     = 44;
+    // ── Layout ─────────────────────────────────────────────────
+    private static final int GUI_SIZE          = 54;
+    private static final int PRODUCTS_START    = 18;
+    private static final int PRODUCTS_END      = 44;
     private static final int PRODUCTS_PER_PAGE = PRODUCTS_END - PRODUCTS_START + 1;
-    private static final int SLOT_BACK        = 0;
-    private static final int SLOT_BALANCE     = 4;
-    private static final int SLOT_BUY_CURRENCY = 8;
-    private static final int SLOT_PREV_PAGE   = 45;
-    private static final int SLOT_PAGE_INFO   = 49;
-    private static final int SLOT_NEXT_PAGE   = 53;
+    private static final int SLOT_BACK         = 0;
+    private static final int SLOT_BALANCE      = 4;
+    private static final int SLOT_BUY_CURRENCY = 8;   // BellCoins — untouched
+    private static final int SLOT_PREV_PAGE    = 45;
+    private static final int SLOT_PAGE_INFO    = 49;
+    private static final int SLOT_NEXT_PAGE    = 53;
 
-    private static final int MAIN_SIZE        = 54;
-    private static final int MAIN_CAT_START   = 9;
-    private static final int MAIN_CAT_END     = 44;
-    private static final int MAIN_BUY_CURRENCY = 8;
-    private static final int MAIN_BALANCE     = 4;
+    private static final int MAIN_SIZE         = 54;
+    private static final int MAIN_CAT_START    = 9;
+    private static final int MAIN_CAT_END      = 44;
+    private static final int MAIN_BALANCE      = 4;
+    private static final int MAIN_BUY_CURRENCY = 8;   // BellCoins — untouched
+    private static final int MAIN_FEATURED     = 7;   // ← NEW: featured category shortcut
 
     private final BellMarket plugin;
     private final PurchaseProcessor purchaseProcessor;
@@ -89,12 +95,10 @@ public class ShopGUI implements Listener {
         Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
-    // ─── Open methods ──────────────────────────────────────────────────────
+    // ── Open methods ───────────────────────────────────────────
 
     public void openMainMenu(Player player) {
-        // FIX SESJA-2: show ALL categories — VIP visible to everyone.
-        // Non-VIP can see the category but gets a message when clicking it.
-        // OP automatically passes all permission checks (Bukkit default).
+        // All categories visible — VIP shown to everyone, blocked on click for non-VIP
         List<Category> categories = plugin.getCategories().getCategories();
 
         ShopHolder holder = new ShopHolder(null, 0);
@@ -103,14 +107,17 @@ public class ShopGUI implements Listener {
         holder.setInventory(inv);
         fillBackground(inv, MAIN_SIZE);
 
+        // ── Top bar ────────────────────────────────────────────
         inv.setItem(MAIN_BALANCE, buildBalanceButton(player));
-        inv.setItem(MAIN_BUY_CURRENCY, buildBuyCurrencyButton());
+        inv.setItem(MAIN_BUY_CURRENCY, buildBuyCurrencyButton());   // untouched
 
+        // Slot 7: featured category shortcut (configured via shop.featured-category-id)
+        buildFeaturedSlot(player, inv);
+
+        // ── Category grid (slots 9–44) ─────────────────────────
         int slot = MAIN_CAT_START;
         for (Category cat : categories) {
             if (slot > MAIN_CAT_END) break;
-            // Locked visual hint for categories the player can't enter
-            boolean canEnter = plugin.getCategories().canSee(player, cat);
             inv.setItem(slot, cat.buildIcon(false));
             slot++;
         }
@@ -119,13 +126,43 @@ public class ShopGUI implements Listener {
         player.openInventory(inv);
     }
 
+    /**
+     * Builds slot 7 as a shortcut to the "featured category" configured via
+     *   shop.featured-category-id: "09_vip"   (in config.yml)
+     * If the key is missing/empty, slot 7 stays as gray filler.
+     */
+    private void buildFeaturedSlot(Player player, Inventory inv) {
+        String featuredId = plugin.getConfig().getString("shop.featured-category-id", "");
+        if (featuredId.isEmpty()) return;
+
+        Category cat = plugin.getCategories().getCategory(featuredId);
+        if (cat == null) return;
+
+        boolean canEnter = plugin.getCategories().canSee(player, cat);
+
+        ItemStack icon = new ItemStack(cat.getIconMaterial());
+        ItemMeta meta  = icon.getItemMeta();
+        if (meta != null) {
+            meta.displayName(colorize(cat.getName()));
+            List<Component> lore = new ArrayList<>();
+            if (canEnter) {
+                lore.add(colorize("&eClick &7to open"));
+            } else {
+                lore.add(colorize("&5VIP Access Required"));
+                lore.add(colorize("&7Subscribe to gain entry."));
+            }
+            meta.lore(lore);
+            icon.setItemMeta(meta);
+        }
+        inv.setItem(MAIN_FEATURED, icon);
+    }
+
     public void openCategory(Player player, String categoryId, int page) {
         Category category = plugin.getCategories().getCategory(categoryId);
         if (category == null) {
             player.sendMessage(plugin.getLang().component("shop.purchase-failed"));
             return;
         }
-        // Verify permission on direct open (bypass protection)
         if (!plugin.getCategories().canSee(player, category)) {
             player.sendMessage(plugin.getLang().component("shop.vip-required"));
             return;
@@ -137,8 +174,8 @@ public class ShopGUI implements Listener {
 
         ShopHolder holder = new ShopHolder(categoryId, page);
         String rawTitle = plugin.getConfig().getString("shop.category-title", "&8✦ &6{category} &8✦");
-        String title = rawTitle.replace("{category}", category.getDisplayName());
-        Inventory inv = Bukkit.createInventory(holder, GUI_SIZE, colorize(title));
+        Inventory inv = Bukkit.createInventory(holder, GUI_SIZE,
+            colorize(rawTitle.replace("{category}", category.getDisplayName())));
         holder.setInventory(inv);
         fillBackground(inv, GUI_SIZE);
 
@@ -149,23 +186,17 @@ public class ShopGUI implements Listener {
         ItemStack catLabel = new ItemStack(category.getIconMaterial());
         ItemMeta catMeta = catLabel.getItemMeta();
         catMeta.displayName(colorize(category.getName()));
-        catMeta.lore(List.of(
-            colorize("&7Browse items in this category."),
-            colorize("&7Page &f" + (page + 1))
-        ));
+        catMeta.lore(List.of(colorize("&7Page &f" + (page + 1))));
         catLabel.setItemMeta(catMeta);
         inv.setItem(13, catLabel);
 
         int start = page * PRODUCTS_PER_PAGE;
         int end = Math.min(start + PRODUCTS_PER_PAGE, products.size());
         int slot = PRODUCTS_START;
-        for (int i = start; i < end; i++) {
-            inv.setItem(slot, products.get(i).buildIcon());
-            slot++;
-        }
+        for (int i = start; i < end; i++) inv.setItem(slot++, products.get(i).buildIcon());
 
-        if (page > 0)                inv.setItem(SLOT_PREV_PAGE, buildPrevButton());
-        if (page < totalPages - 1)   inv.setItem(SLOT_NEXT_PAGE, buildNextButton());
+        if (page > 0)              inv.setItem(SLOT_PREV_PAGE, buildPrevButton());
+        if (page < totalPages - 1) inv.setItem(SLOT_NEXT_PAGE, buildNextButton());
         inv.setItem(SLOT_PAGE_INFO, buildPageInfo(page + 1, totalPages));
 
         playSound(player, "navigate", Sound.UI_BUTTON_CLICK);
@@ -190,7 +221,7 @@ public class ShopGUI implements Listener {
         player.openInventory(inv);
     }
 
-    // ─── Event handlers ────────────────────────────────────────────────────
+    // ── Events ─────────────────────────────────────────────────
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onInventoryClick(InventoryClickEvent event) {
@@ -215,64 +246,74 @@ public class ShopGUI implements Listener {
         ItemStack clicked = inv.getItem(slot);
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
-        if (holder.isMainMenu()) handleMainMenuClick(player, slot, inv);
-        else handleCategoryClick(player, holder, slot, clicked, inv);
+        if (holder.isMainMenu()) handleMainMenuClick(player, slot);
+        else handleCategoryClick(player, holder, slot);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onInventoryDrag(InventoryDragEvent event) {
-        Inventory inv = event.getInventory();
-        if (inv.getHolder() instanceof ShopHolder || inv.getHolder() instanceof ConfirmHolder)
+        if (event.getInventory().getHolder() instanceof ShopHolder
+         || event.getInventory().getHolder() instanceof ConfirmHolder)
             event.setCancelled(true);
     }
 
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) { }
 
-    // ─── Click handlers ────────────────────────────────────────────────────
+    // ── Click handlers ─────────────────────────────────────────
 
-    private void handleMainMenuClick(Player player, int slot, Inventory inv) {
-        if (slot < 9) {
-            if (slot == MAIN_BUY_CURRENCY) sendPremiumUrl(player);
-            return;
-        }
-        if (slot >= MAIN_CAT_START && slot <= MAIN_CAT_END) {
-            // FIX: use same list as openMainMenu (ALL categories, no filter)
-            List<Category> categories = plugin.getCategories().getCategories();
-            int index = slot - MAIN_CAT_START;
-            if (index < 0 || index >= categories.size()) return;
-
-            Category cat = categories.get(index);
-
-            // FIX: permission check on click — non-VIP sees category but can't enter
-            // OP has all permissions in Bukkit, so passes automatically
+    private void handleMainMenuClick(Player player, int slot) {
+        // Slot 7: featured category shortcut
+        if (slot == MAIN_FEATURED) {
+            String featuredId = plugin.getConfig().getString("shop.featured-category-id", "");
+            if (featuredId.isEmpty()) return;
+            Category cat = plugin.getCategories().getCategory(featuredId);
+            if (cat == null) return;
             if (!plugin.getCategories().canSee(player, cat)) {
                 player.sendMessage(plugin.getLang().component("shop.vip-required"));
                 playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
                 return;
             }
+            playSound(player, "navigate", Sound.UI_BUTTON_CLICK);
+            openCategory(player, cat.getId(), 0);
+            return;
+        }
 
+        // Slot 8: buy BellCoins (untouched)
+        if (slot == MAIN_BUY_CURRENCY) { sendPremiumUrl(player); return; }
+
+        // Slots 9–44: category grid
+        if (slot >= MAIN_CAT_START && slot <= MAIN_CAT_END) {
+            List<Category> categories = plugin.getCategories().getCategories();
+            int index = slot - MAIN_CAT_START;
+            if (index < 0 || index >= categories.size()) return;
+            Category cat = categories.get(index);
+            if (!plugin.getCategories().canSee(player, cat)) {
+                player.sendMessage(plugin.getLang().component("shop.vip-required"));
+                playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
+                return;
+            }
             playSound(player, "navigate", Sound.UI_BUTTON_CLICK);
             openCategory(player, cat.getId(), 0);
         }
     }
 
-    private void handleCategoryClick(Player player, ShopHolder holder, int slot, ItemStack clicked, Inventory inv) {
-        String categoryId = holder.getCategoryId();
-        int page = holder.getPage();
+    private void handleCategoryClick(Player player, ShopHolder holder, int slot) {
+        String catId = holder.getCategoryId();
+        int page     = holder.getPage();
 
-        if (slot == SLOT_BACK) { playSound(player, "navigate", Sound.UI_BUTTON_CLICK); openMainMenu(player); return; }
-        if (slot == SLOT_BUY_CURRENCY) { sendPremiumUrl(player); return; }
-        if (slot == SLOT_PREV_PAGE && page > 0) { openCategory(player, categoryId, page - 1); return; }
-        if (slot == SLOT_NEXT_PAGE)              { openCategory(player, categoryId, page + 1); return; }
+        if (slot == SLOT_BACK)                          { playSound(player, "navigate", Sound.UI_BUTTON_CLICK); openMainMenu(player); return; }
+        if (slot == SLOT_BUY_CURRENCY)                  { sendPremiumUrl(player); return; }
+        if (slot == SLOT_PREV_PAGE && page > 0)         { openCategory(player, catId, page - 1); return; }
+        if (slot == SLOT_NEXT_PAGE)                     { openCategory(player, catId, page + 1); return; }
 
         if (slot >= PRODUCTS_START && slot <= PRODUCTS_END) {
-            Category category = plugin.getCategories().getCategory(categoryId);
+            Category category = plugin.getCategories().getCategory(catId);
             if (category == null) return;
             List<Product> products = category.getEnabledProducts();
             int index = (page * PRODUCTS_PER_PAGE) + (slot - PRODUCTS_START);
             if (index >= products.size()) return;
-            openConfirm(player, categoryId, products.get(index).getId(), page);
+            openConfirm(player, catId, products.get(index).getId(), page);
         }
     }
 
@@ -284,47 +325,34 @@ public class ShopGUI implements Listener {
         if (product == null) return;
 
         PurchaseProcessor.Result result = purchaseProcessor.process(player, product);
-
         switch (result) {
             case SUCCESS -> {
-                long newBalance = plugin.getCurrency().getBalance(player);
+                long bal = plugin.getCurrency().getBalance(player);
                 player.sendMessage(plugin.getLang().component("shop.purchase-success",
                     "product", product.getName(),
                     "price", String.valueOf(product.getPrice()),
-                    "balance", plugin.getLang().formatAmount(newBalance)));
+                    "balance", plugin.getLang().formatAmount(bal)));
                 playSound(player, "purchase-success", Sound.ENTITY_PLAYER_LEVELUP);
                 Bukkit.getScheduler().runTask(plugin, () ->
                     openCategory(player, holder.getCategoryId(), holder.getPage()));
             }
             case NOT_ENOUGH_COINS -> {
-                long balance = plugin.getCurrency().getBalance(player);
+                long bal = plugin.getCurrency().getBalance(player);
                 player.sendMessage(plugin.getLang().component("shop.not-enough-currency",
                     "price", String.valueOf(product.getPrice()),
-                    "balance", plugin.getLang().formatAmount(balance)));
+                    "balance", plugin.getLang().formatAmount(bal)));
                 playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
                 Bukkit.getScheduler().runTask(plugin, () ->
                     openCategory(player, holder.getCategoryId(), holder.getPage()));
             }
-            case PRODUCT_DISABLED -> {
-                player.sendMessage(plugin.getLang().component("shop.out-of-stock"));
-                playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
-            }
-            case DELIVERY_FAILED -> {
-                player.sendMessage(plugin.getLang().component("shop.purchase-failed"));
-                playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
-            }
-            case NO_PERMISSION -> {
-                player.sendMessage(plugin.getLang().component("no-permission"));
-                playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
-            }
-            case CANCELLED -> {
-                player.sendMessage(plugin.getLang().component("shop.purchase-failed"));
-                playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
-            }
+            case PRODUCT_DISABLED -> { player.sendMessage(plugin.getLang().component("shop.out-of-stock")); playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO); }
+            case DELIVERY_FAILED  -> { player.sendMessage(plugin.getLang().component("shop.purchase-failed")); playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO); }
+            case NO_PERMISSION    -> { player.sendMessage(plugin.getLang().component("no-permission")); playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO); }
+            case CANCELLED        -> { player.sendMessage(plugin.getLang().component("shop.purchase-failed")); playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO); }
         }
     }
 
-    // ─── Item builders ─────────────────────────────────────────────────────
+    // ── Item builders ──────────────────────────────────────────
 
     private ItemStack buildBalanceButton(Player player) {
         long balance = plugin.getCurrency().getBalance(player);
@@ -382,8 +410,7 @@ public class ShopGUI implements Listener {
         ItemStack item = new ItemStack(Material.PAPER);
         ItemMeta meta = item.getItemMeta();
         meta.displayName(colorize(plugin.getLang().getRaw("gui.page-info",
-            "current", String.valueOf(current),
-            "total", String.valueOf(total))));
+            "current", String.valueOf(current), "total", String.valueOf(total))));
         item.setItemMeta(meta);
         return item;
     }
@@ -392,10 +419,9 @@ public class ShopGUI implements Listener {
         ItemStack item = new ItemStack(Material.LIME_WOOL);
         ItemMeta meta = item.getItemMeta();
         meta.displayName(colorize(plugin.getLang().getRaw("gui.confirm-yes")));
-        String info = plugin.getLang().getRaw("shop.confirm-info",
+        meta.lore(List.of(colorize(plugin.getLang().getRaw("shop.confirm-info",
             "product", product.getName(),
-            "price", plugin.getLang().formatAmount(product.getPrice()));
-        meta.lore(List.of(colorize(info)));
+            "price", plugin.getLang().formatAmount(product.getPrice())))));
         item.setItemMeta(meta);
         return item;
     }
@@ -421,8 +447,7 @@ public class ShopGUI implements Listener {
         String buttonText = plugin.getConfig().getString("shop.premium-button-text",
             "&eClick here to buy {currency}!")
             .replace("{currency}", plugin.getLang().getCurrencyName());
-        player.sendMessage(plugin.getLang().colorize(
-            plugin.getLang().getRaw("prefix") + buttonText));
+        player.sendMessage(plugin.getLang().colorize(plugin.getLang().getRaw("prefix") + buttonText));
         if (!url.isEmpty()) {
             player.sendMessage(plugin.getLang().colorize(
                 plugin.getLang().getRaw("shop.buy-currency-url", "url", url)));
