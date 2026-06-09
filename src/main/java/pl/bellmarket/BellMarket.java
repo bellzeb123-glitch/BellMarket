@@ -1,11 +1,11 @@
 /*
- * BellMarket - Main plugin class (SESJA-2)
+ * BellMarket - Main plugin class (SESJA-3)
  *
- * Sesja 2 additions:
- *   + Registers /vt (VipTokenCommand)
- *   + Registers PriceEditorGUI as Listener (handles its own click + chat events)
- *
- * Everything else unchanged from Sesja 1.
+ * Sesja 3 additions:
+ *   + Registers MythicMobsProvider
+ *   + Registers EliteMobsProvider
+ *   + Registers FreeMinecraftModelsProvider
+ *   All are soft-depend — skip silently if plugin not installed.
  */
 package pl.bellmarket;
 
@@ -26,6 +26,9 @@ import pl.bellmarket.gui.ShopGUI;
 import pl.bellmarket.listener.AdminChatListener;
 import pl.bellmarket.listener.PlayerListener;
 import pl.bellmarket.model.Category;
+import pl.bellmarket.provider.EliteMobsProvider;
+import pl.bellmarket.provider.FreeMinecraftModelsProvider;
+import pl.bellmarket.provider.MythicMobsProvider;
 import pl.bellmarket.provider.ProductProviderRegistry;
 import pl.bellmarket.provider.SkinStudioProvider;
 
@@ -51,23 +54,28 @@ public class BellMarket extends JavaPlugin {
         saveResource("categories/07_mounts.yml", false);
         saveResource("categories/08_custom.yml", false);
 
-        // Core managers
         this.langManager     = new LangManager(this);
         this.currencyManager = new CurrencyManager(this);
         this.categoryManager = new CategoryManager(this);
         this.shopGUI         = new ShopGUI(this);
-
-        // Sesja 1 additions
-        this.vipTokens        = new VipTokenManager(this);
+        this.vipTokens       = new VipTokenManager(this);
         this.providerRegistry = new ProductProviderRegistry(this);
+
+        // ── Built-in providers ──────────────────────────────────────────────
         providerRegistry.register(new SkinStudioProvider(this));
+        providerRegistry.register(new MythicMobsProvider(this));     // SESJA-3
+        providerRegistry.register(new EliteMobsProvider(this));      // SESJA-3
+        providerRegistry.register(new FreeMinecraftModelsProvider(this)); // SESJA-3
+        // Future: providerRegistry.register(new ItemsAdderProvider(this));
+        // Future: providerRegistry.register(new NexoProvider(this));
+
         BellMarketAPI.init(this, providerRegistry);
 
         for (Category c : providerRegistry.generateAll()) {
             categoryManager.getCategories().add(c);
         }
 
-        // Commands
+        // ── Commands ────────────────────────────────────────────────────────
         BellMarketCommand bmCmd = new BellMarketCommand(this);
         PluginCommand bellmarketCmd = getCommand("bellmarket");
         if (bellmarketCmd != null) bellmarketCmd.setExecutor(bmCmd);
@@ -76,7 +84,6 @@ public class BellMarket extends JavaPlugin {
         PluginCommand bellcoinsCmd = getCommand("bellcoins");
         if (bellcoinsCmd != null) bellcoinsCmd.setExecutor(bcCmd);
 
-        // SESJA-2: /vt command
         VipTokenCommand vtCmd = new VipTokenCommand(this);
         PluginCommand vtCommand = getCommand("vt");
         if (vtCommand != null) {
@@ -84,11 +91,10 @@ public class BellMarket extends JavaPlugin {
             vtCommand.setTabCompleter(vtCmd);
         }
 
-        // Listeners
+        // ── Listeners ───────────────────────────────────────────────────────
         PluginManager pm = getServer().getPluginManager();
         pm.registerEvents(new PlayerListener(this), this);
         pm.registerEvents(new AdminChatListener(this, bmCmd.getAdminGUI()), this);
-        // SESJA-2: PriceEditorGUI is its own Listener
         pm.registerEvents(bmCmd.getPriceEditor(), this);
 
         getLogger().info("BellMarket v" + getDescription().getVersion() + " enabled!");
@@ -118,11 +124,11 @@ public class BellMarket extends JavaPlugin {
             new BellMarketReloadEvent(BellMarketReloadEvent.Phase.POST_PROVIDERS));
     }
 
-    public static BellMarket getInstance()         { return instance; }
-    public LangManager  getLang()                  { return langManager; }
-    public CurrencyManager getCurrency()           { return currencyManager; }
-    public CategoryManager getCategories()         { return categoryManager; }
-    public ShopGUI getShopGUI()                    { return shopGUI; }
-    public VipTokenManager getVipTokens()          { return vipTokens; }
+    public static BellMarket getInstance()          { return instance; }
+    public LangManager  getLang()                   { return langManager; }
+    public CurrencyManager getCurrency()            { return currencyManager; }
+    public CategoryManager getCategories()          { return categoryManager; }
+    public ShopGUI getShopGUI()                     { return shopGUI; }
+    public VipTokenManager getVipTokens()           { return vipTokens; }
     public ProductProviderRegistry getProviderRegistry() { return providerRegistry; }
 }
