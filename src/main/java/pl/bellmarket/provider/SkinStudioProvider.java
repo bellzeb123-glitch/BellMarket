@@ -122,7 +122,7 @@ public class SkinStudioProvider implements ProductProvider {
                 COLOR_TO_GLASS.getOrDefault(tierColor, auto.icon()));
             // FIXES4: skip tier if explicitly disabled
             if (tierCfg != null && !tierCfg.getBoolean("enabled", true)) {
-                plugin.getLogger().info("[SkinStudioProvider] Tier '" + tierKey + "' disabled in skinstudio.yml, skipping");
+                plugin.getLogger().info("[SkinStudioProvider] Tier '" + tier + "' disabled in skinstudio.yml, skipping");
                 continue;
             }
 
