@@ -1,21 +1,20 @@
 /*
- * BellMarket - FreeMinecraftModelsProvider (SESJA-3 FIX3)
+ * BellMarket - FreeMinecraftModelsProvider (SESJA-3 FIX4)
  *
- * REWRITE — uses FMM API instead of directory scanning:
- *   ModeledEntityManager.getConvertedFileModels().keySet() = real loaded model IDs
- *   This is the source of truth — not the filesystem structure.
+ * FIX: Filesystem scan now finds BOTH:
+ *   - .bbmodel files directly in models/ → model ID = filename
+ *   - directories containing .bbmodel → model ID = dirname
+ *   - subdirectories recursively
  *
- * Model naming: "furniture_chair", "furniture_table" etc. → category "furniture"
- * Delivery: /fmm spawn {player} {modelId} at player location
+ * FMM API fix: getConvertedFileModels() is NOT static — needs
+ * instance lookup via FMM plugin class.
  */
 package pl.bellmarket.provider;
 
-import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import pl.bellmarket.BellMarket;
 import pl.bellmarket.currency.Currency;
@@ -47,15 +46,15 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
         Plugin fmm = plugin.getServer().getPluginManager().getPlugin("FreeMinecraftModels");
         if (fmm == null) return Collections.emptyList();
 
-        // Get ALL loaded model IDs via FMM API
-        Set<String> modelIds = getLoadedModelIds();
+        // Get model IDs - try API first, fall back to filesystem
+        Set<String> modelIds = getModelIds(fmm);
         if (modelIds.isEmpty()) {
-            plugin.getLogger().info("[FMMProvider] No models found via API. Check FMM is loaded properly.");
+            plugin.getLogger().info("[FMMProvider] No models found.");
             return Collections.emptyList();
         }
-        plugin.getLogger().info("[FMMProvider] Found " + modelIds.size() + " loaded models via API.");
+        plugin.getLogger().info("[FMMProvider] Found " + modelIds.size() + " models.");
 
-        FileConfiguration cfg = loadOrCreateProviderConfig(modelIds, defaultPrice);
+        FileConfiguration cfg = loadOrCreateProviderConfig(fmm, modelIds, defaultPrice);
         if (!cfg.getBoolean("enabled", true)) return Collections.emptyList();
 
         long globalDefault    = cfg.getLong("default-price", defaultPrice);
@@ -66,17 +65,14 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
         var modelPrices       = cfg.getConfigurationSection("model-prices");
         var cats              = cfg.getConfigurationSection("categories");
 
-        // Filter
-        List<String> filteredIds = modelIds.stream()
+        List<String> filtered = modelIds.stream()
             .filter(id -> !excluded.contains(id))
             .filter(id -> prefixes.isEmpty() || prefixes.stream()
                 .anyMatch(p -> id.toLowerCase().startsWith(p.toLowerCase())))
-            .sorted()
-            .toList();
+            .sorted().toList();
 
-        // Group by prefix
         Map<String, List<String>> byCategory = new LinkedHashMap<>();
-        for (String id : filteredIds) {
+        for (String id : filtered) {
             byCategory.computeIfAbsent(categoryOf(id), k -> new ArrayList<>()).add(id);
         }
 
@@ -96,8 +92,7 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
             List<Product> products = new ArrayList<>();
             for (String modelId : models) {
                 var mCfg = modelsCfg != null ? modelsCfg.getConfigurationSection(modelId) : null;
-                boolean show = mCfg == null || mCfg.getBoolean("show-in-shop", true);
-                if (!show) continue;
+                if (mCfg != null && !mCfg.getBoolean("show-in-shop", true)) continue;
 
                 long price = (modelPrices != null && modelPrices.contains(modelId))
                     ? modelPrices.getLong(modelId) : catDefault;
@@ -145,52 +140,87 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
     }
 
     /**
-     * Uses FMM API via reflection to get all loaded model IDs.
-     * ModeledEntityManager.getConvertedFileModels() returns Map<String, ?>.
-     * Keys = model IDs (e.g. "furniture_chair", "weapon_sword").
+     * Tries FMM API (instance method on ModeledEntityManager),
+     * falls back to comprehensive filesystem scan.
      */
     @SuppressWarnings("unchecked")
-    private Set<String> getLoadedModelIds() {
+    private Set<String> getModelIds(Plugin fmm) {
+        // Try API — getConvertedFileModels() on ModeledEntityManager instance
         try {
-            Class<?> managerClass = Class.forName(
-                "com.magmaguy.freeminecraftmodels.api.ModeledEntityManager");
-            Method getModels = managerClass.getMethod("getConvertedFileModels");
-            Map<String, ?> models = (Map<String, ?>) getModels.invoke(null);
-            return new HashSet<>(models.keySet());
-        } catch (Throwable e) {
-            // fallback: scan filesystem
-            plugin.getLogger().warning("[FMMProvider] API not available (" + e.getMessage()
-                + "), falling back to filesystem scan.");
-            return scanModelDirectories();
-        }
+            Class<?> cls = Class.forName("com.magmaguy.freeminecraftmodels.api.ModeledEntityManager");
+            // Try as static method first
+            Method m = cls.getMethod("getConvertedFileModels");
+            Object result = m.invoke(null);
+            if (result instanceof Map<?,?> map && !map.isEmpty()) {
+                Set<String> ids = new HashSet<>();
+                map.keySet().forEach(k -> ids.add(String.valueOf(k)));
+                plugin.getLogger().info("[FMMProvider] API (static) returned " + ids.size() + " models.");
+                return ids;
+            }
+        } catch (Throwable ignored) {}
+
+        // Try as instance method via plugin
+        try {
+            Class<?> cls = Class.forName("com.magmaguy.freeminecraftmodels.api.ModeledEntityManager");
+            Object instance = fmm; // try plugin as instance
+            Method m = cls.getMethod("getConvertedFileModels");
+            Object result = m.invoke(instance);
+            if (result instanceof Map<?,?> map && !map.isEmpty()) {
+                Set<String> ids = new HashSet<>();
+                map.keySet().forEach(k -> ids.add(String.valueOf(k)));
+                return ids;
+            }
+        } catch (Throwable ignored) {}
+
+        // Filesystem scan — comprehensive
+        plugin.getLogger().info("[FMMProvider] Using filesystem scan for models.");
+        return scanModels(fmm);
     }
 
-    /** Filesystem fallback: recursively find directories containing .bbmodel files. */
-    private Set<String> scanModelDirectories() {
+    /**
+     * Comprehensive scan: finds model IDs from both file and directory layouts.
+     *
+     * Supports:
+     *   models/chair.bbmodel          → id "chair"
+     *   models/furniture/chair/       → id "furniture_chair" (dir with bbmodel inside)
+     *   models/furniture_chair.bbmodel → id "furniture_chair"
+     */
+    private Set<String> scanModels(Plugin fmm) {
         Set<String> ids = new LinkedHashSet<>();
-        Plugin fmm = plugin.getServer().getPluginManager().getPlugin("FreeMinecraftModels");
-        if (fmm == null) return ids;
         File modelsDir = new File(fmm.getDataFolder(), "models");
         if (!modelsDir.exists()) return ids;
-        scanRecursive(modelsDir, modelsDir, ids);
+        scanDir(modelsDir, modelsDir, ids);
         return ids;
     }
 
-    private void scanRecursive(File root, File dir, Set<String> result) {
-        File[] children = dir.listFiles();
+    private void scanDir(File root, File current, Set<String> results) {
+        File[] children = current.listFiles();
         if (children == null) return;
-        // If this directory contains a .bbmodel file → it's a model
-        boolean isModel = Arrays.stream(children).anyMatch(f -> f.getName().endsWith(".bbmodel"));
-        if (isModel && !dir.equals(root)) {
-            // Use path relative to root as model ID (e.g. "furniture/chair" or "chair")
-            String relPath = root.toPath().relativize(dir.toPath())
-                .toString().replace(File.separatorChar, '_');
-            result.add(relPath);
-            return;
-        }
-        // Otherwise recurse into subdirectories
+
         for (File child : children) {
-            if (child.isDirectory()) scanRecursive(root, child, result);
+            if (child.isFile() && child.getName().endsWith(".bbmodel")) {
+                // .bbmodel file → model ID = path from root, no extension
+                String relPath = root.toPath().relativize(child.toPath())
+                    .toString().replace(File.separatorChar, '_')
+                    .replaceAll("\\.bbmodel$", "");
+                results.add(relPath);
+
+            } else if (child.isDirectory()) {
+                // Check if this directory contains a .bbmodel at its root
+                boolean isModelDir = Arrays.stream(Objects.requireNonNull(
+                    child.listFiles(f -> f.getName().endsWith(".bbmodel")),
+                    new File[0])).length > 0;
+
+                if (isModelDir) {
+                    // Directory is a model
+                    String relPath = root.toPath().relativize(child.toPath())
+                        .toString().replace(File.separatorChar, '_');
+                    results.add(relPath);
+                } else {
+                    // Recurse into subdirectory (might contain models)
+                    scanDir(root, child, results);
+                }
+            }
         }
     }
 
@@ -198,13 +228,6 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
 # ============================================================
 #  BellMarket - FreeMinecraftModels Provider Configuration
 # ============================================================
-# Uses FMM API to list all loaded models — not filesystem scan.
-# Model IDs come from ModeledEntityManager.getConvertedFileModels()
-#
-# Delivery command: /fmm spawn {player} {model}
-# {player} = player name, {model} = model ID
-# ============================================================
-
 enabled: true
 base-order: 400
 default-price: ${DEFAULT_PRICE}
@@ -215,7 +238,7 @@ excluded-models: []
 categories: {}
 model-prices: {}
 
-# Configure per-model: icon, display name, custom commands
+# Configure per model:
 # models:
 #   furniture_chair:
 #     display-name: "Wooden Chair"
@@ -224,27 +247,26 @@ model-prices: {}
 #     commands:
 #       - "fmm spawn {player} furniture_chair"
 models: {}
+${DETECTED}""";
 
-${DETECTED_MODELS}""";
-
-    private FileConfiguration loadOrCreateProviderConfig(Set<String> modelIds, long defaultPrice) {
+    private FileConfiguration loadOrCreateProviderConfig(Plugin fmm, Set<String> modelIds, long defaultPrice) {
         File dir = new File(plugin.getDataFolder(), "providers");
         if (!dir.exists()) dir.mkdirs();
         File f = new File(dir, "fmm.yml");
         if (!f.exists()) {
             try {
-                StringBuilder detected = new StringBuilder();
+                StringBuilder sb = new StringBuilder();
                 if (!modelIds.isEmpty()) {
-                    detected.append("\n# ─── Detected models (").append(modelIds.size()).append(") ───\n");
-                    detected.append("# Move entries to models: section above to configure them:\n");
+                    sb.append("\n# ─── Detected models (").append(modelIds.size()).append(") ───\n");
                     new TreeSet<>(modelIds).forEach(id ->
-                        detected.append("#   ").append(id).append(": ").append(defaultPrice).append("\n"));
+                        sb.append("# model-prices:\n#   ").append(id)
+                          .append(": ").append(defaultPrice).append("\n"));
                 }
                 Files.writeString(f.toPath(), TEMPLATE
                     .replace("${DEFAULT_PRICE}", String.valueOf(defaultPrice))
-                    .replace("${DETECTED_MODELS}", detected.toString()));
+                    .replace("${DETECTED}", sb.toString()));
             } catch (IOException e) {
-                plugin.getLogger().warning("[FMMProvider] Config write failed: " + e.getMessage());
+                plugin.getLogger().warning("[FMMProvider] " + e.getMessage());
             }
         }
         return YamlConfiguration.loadConfiguration(f);

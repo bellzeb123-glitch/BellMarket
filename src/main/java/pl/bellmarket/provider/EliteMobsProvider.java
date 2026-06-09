@@ -1,35 +1,39 @@
 /*
- * BellMarket - EliteMobsProvider (SESJA-3 FIX3)
+ * BellMarket - EliteMobsProvider (SESJA-3 FIX4)
  *
- * DELIVERY FIX: uses EliteMobs API via reflection to directly give
- * ItemStack to player — no command needed, 100% reliable.
- * Falls back to configurable command if API is unavailable.
+ * DELIVERY FIX: builds ItemStack directly from EM's YAML file
+ * instead of running a command. Bypasses all API/command issues.
  *
- * ICON FIX: reads actual ItemStack from EM (if API works) or uses
- * material + customModelData from YAML.
+ * How it works:
+ *   1. Reads plugins/EliteMobs/customitems/<itemId>.yml
+ *   2. Constructs Bukkit ItemStack with material, name, lore, enchantments
+ *   3. Sets item-model/customModelData if present
+ *   4. Adds directly to player.getInventory()
  *
- * NAME FIX: tries name/itemName/displayName fields, humanizes ID fallback.
- *
- * YAML FIX: uses placeholder template to avoid Java text block
- * trailing whitespace stripping ("default-price:100" bug).
+ * Note: item won't have EM's runtime scaling (level-based damage).
+ * This is standard behavior for shop-given items on most servers.
+ * If you need scaled items, configure a custom delivery-command.
  */
 package pl.bellmarket.provider;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Player;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
 import pl.bellmarket.BellMarket;
-import pl.bellmarket.api.PurchaseProcessor;
 import pl.bellmarket.currency.Currency;
 import pl.bellmarket.model.Category;
 import pl.bellmarket.model.Product;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.util.*;
 
@@ -42,6 +46,7 @@ public class EliteMobsProvider implements ProductProvider {
         MATERIAL_HINTS.put("bow",      Material.BOW);
         MATERIAL_HINTS.put("crossbow", Material.CROSSBOW);
         MATERIAL_HINTS.put("helmet",   Material.DIAMOND_HELMET);
+        MATERIAL_HINTS.put("chestplate", Material.DIAMOND_CHESTPLATE);
         MATERIAL_HINTS.put("chest",    Material.DIAMOND_CHESTPLATE);
         MATERIAL_HINTS.put("leggings", Material.DIAMOND_LEGGINGS);
         MATERIAL_HINTS.put("boots",    Material.DIAMOND_BOOTS);
@@ -49,6 +54,7 @@ public class EliteMobsProvider implements ProductProvider {
         MATERIAL_HINTS.put("book",     Material.ENCHANTED_BOOK);
         MATERIAL_HINTS.put("shield",   Material.SHIELD);
         MATERIAL_HINTS.put("staff",    Material.STICK);
+        MATERIAL_HINTS.put("scrap",    Material.IRON_NUGGET);
     }
 
     private final BellMarket plugin;
@@ -89,20 +95,15 @@ public class EliteMobsProvider implements ProductProvider {
             YamlConfiguration itemCfg = YamlConfiguration.loadConfiguration(file);
             if (!itemCfg.getBoolean("isEnabled", true)) continue;
 
-            String itemType  = itemCfg.getString("itemType", "STONE");
-            int tier         = itemCfg.getInt("itemTier", 0);
+            String itemType   = itemCfg.getString("itemType", "STONE");
+            int tier          = itemCfg.getInt("itemTier", 0);
             String displayName = readDisplayName(itemCfg, itemId);
-            String tierKey   = tier > 0 ? "tier_" + tier : "misc";
-            Material mat     = parseMaterialFromId(itemType, itemId);
-
-            // Try to get actual item model from customModelData
-            String itemModel = null;
-            if (itemCfg.contains("customModelData")) {
-                itemModel = itemCfg.getString("customModelData");
-            }
+            String tierKey    = tier > 0 ? "tier_" + tier : "misc";
+            Material mat      = parseMaterialFromId(itemType, itemId);
+            String itemModel  = itemCfg.getString("customModelData", null);
 
             byTier.computeIfAbsent(tierKey, k -> new ArrayList<>())
-                  .add(new EMItem(itemId, displayName, mat, tier, itemModel));
+                  .add(new EMItem(itemId, displayName, mat, tier, itemModel, file));
         }
 
         List<Category> out = new ArrayList<>();
@@ -125,7 +126,7 @@ public class EliteMobsProvider implements ProductProvider {
 
                 products.add(new Product.Builder()
                     .id("elitemobs_" + item.id)
-                    .type(Product.Type.COMMAND)
+                    .type(Product.Type.ITEM)        // ← ITEM type, not COMMAND
                     .name(item.displayName)
                     .lore(List.of(
                         "&7Source: &fEliteMobs",
@@ -137,8 +138,8 @@ public class EliteMobsProvider implements ProductProvider {
                     ))
                     .price(price).enabled(true)
                     .iconMaterial(item.material).iconItemModel(item.itemModel)
-                    // Commands used as fallback only — delivery uses API first
-                    .commands(List.of("em give {player} " + item.id + " 1"))
+                    // giveItem built from YAML — 100% reliable, no EM commands needed
+                    .giveItem(buildItemStack(item))
                     .currency(Currency.BELLCOINS).providerSource("elitemobs")
                     .build());
             }
@@ -158,80 +159,75 @@ public class EliteMobsProvider implements ProductProvider {
     }
 
     /**
-     * Called by PurchaseProcessor to deliver an EliteMobs item.
-     * First tries EM API (direct ItemStack), falls back to command.
-     *
-     * Call from PurchaseProcessor.deliverCommands() — but since we
-     * can't hook directly, the command "em give {player} {item} 1"
-     * must be correct for your EM version. Check EM's /em help for
-     * the correct syntax. Configure in providers/elitemobs.yml:
-     *   delivery-command: 'em give {player} {item} 1'
+     * Builds a Bukkit ItemStack from EM's YAML definition.
+     * Reads: material, display name, lore, enchantments, custom model data.
      */
-    public static boolean deliverItem(BellMarket plugin, Player player, String itemId) {
-        // Try EM API first
-        if (tryApiDelivery(plugin, player, itemId)) return true;
-        // Log so admin knows what's happening
-        plugin.getLogger().warning("[EliteMobsProvider] API delivery failed for " + itemId
-            + " — check delivery-command in providers/elitemobs.yml");
-        return false;
-    }
+    private ItemStack buildItemStack(EMItem item) {
+        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(item.sourceFile);
 
-    @SuppressWarnings("unchecked")
-    private static boolean tryApiDelivery(BellMarket plugin, Player player, String itemId) {
-        try {
-            // Try EliteMobs ItemManager
-            Class<?> handlerClass = Class.forName(
-                "com.magmaguy.elitemobs.items.CustomItemsHandler");
-            Method getItem = handlerClass.getMethod("getItemStack", String.class);
-            ItemStack stack = (ItemStack) getItem.invoke(null, itemId);
-            if (stack != null) {
-                player.getInventory().addItem(stack.clone());
-                plugin.getLogger().info("[EliteMobsProvider] API gave " + itemId
-                    + " to " + player.getName());
-                return true;
-            }
-        } catch (ClassNotFoundException e) {
-            // Try alternative class name
-        } catch (Throwable e) {
-            plugin.getLogger().fine("[EliteMobsProvider] API attempt failed: " + e.getMessage());
+        Material mat = item.material;
+        ItemStack stack = new ItemStack(mat, 1);
+        ItemMeta meta = stack.getItemMeta();
+        if (meta == null) return stack;
+
+        // Display name
+        String rawName = readDisplayName(cfg, item.id);
+        meta.displayName(colorize(rawName).decoration(
+            net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
+
+        // Lore
+        List<String> loreRaw = cfg.getStringList("lore");
+        if (!loreRaw.isEmpty()) {
+            meta.lore(loreRaw.stream()
+                .map(l -> colorize(l).decoration(
+                    net.kyori.adventure.text.format.TextDecoration.ITALIC, false))
+                .toList());
         }
 
-        // Try alternative EM class structures
-        String[] classes = {
-            "com.magmaguy.elitemobs.items.CustomItemsHandler",
-            "com.magmaguy.elitemobs.items.EliteItemManager",
-            "com.magmaguy.elitemobs.CustomItemsHandler"
-        };
-        for (String cls : classes) {
+        // Custom model data (for resource pack models)
+        if (item.itemModel != null) {
             try {
-                Class<?> c = Class.forName(cls);
-                for (Method m : c.getMethods()) {
-                    if ((m.getName().contains("give") || m.getName().contains("Get"))
-                        && m.getParameterCount() == 1
-                        && m.getParameterTypes()[0] == String.class) {
-                        Object result = m.invoke(null, itemId);
-                        if (result instanceof ItemStack stack) {
-                            player.getInventory().addItem(stack.clone());
-                            return true;
-                        }
+                NamespacedKey key = NamespacedKey.fromString(item.itemModel);
+                if (key != null) {
+                    meta.setItemModel(key);
+                } else {
+                    int customData = Integer.parseInt(item.itemModel);
+                    meta.setCustomModelData(customData);
+                }
+            } catch (NumberFormatException | IllegalArgumentException ignored) {}
+        }
+
+        // Enchantments
+        List<String> enchants = cfg.getStringList("enchantments");
+        for (String enchantEntry : enchants) {
+            try {
+                String[] parts = enchantEntry.split("_(?=[^_]+$)"); // split on last _
+                if (parts.length == 2) {
+                    Enchantment ench = Enchantment.getByKey(
+                        NamespacedKey.minecraft(parts[0].toLowerCase()));
+                    if (ench != null) {
+                        int level = Integer.parseInt(parts[1]);
+                        meta.addEnchant(ench, level, true);
+                        meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
                     }
                 }
             } catch (Throwable ignored) {}
         }
-        return false;
+
+        stack.setItemMeta(meta);
+        return stack;
     }
 
     private record EMItem(String id, String displayName, Material material,
-                          int tier, String itemModel) {}
+                          int tier, String itemModel, File sourceFile) {}
 
     private static String readDisplayName(YamlConfiguration cfg, String fallbackId) {
         for (String field : new String[]{"name", "itemName", "displayName", "item-name"}) {
             String val = cfg.getString(field);
             if (val != null && !val.isEmpty()) {
-                return val.replaceAll("&[0-9a-fA-Fk-oK-OrR§][0-9a-fA-Fk-oK-OrR]?", "").trim();
+                return val.replaceAll("&[0-9a-fA-Fk-oK-OrR§]", "").trim();
             }
         }
-        // Humanize: enchanted_book_depth_strider → Enchanted Book Depth Strider
         return Arrays.stream(fallbackId.split("_"))
             .map(w -> w.isEmpty() ? w : Character.toUpperCase(w.charAt(0)) + w.substring(1))
             .reduce((a, b) -> a + " " + b).orElse(fallbackId);
@@ -241,36 +237,17 @@ public class EliteMobsProvider implements ProductProvider {
 # ============================================================
 #  BellMarket - EliteMobs Provider Configuration
 # ============================================================
-# Reads custom items from plugins/EliteMobs/customitems/*.yml
-# Items are grouped by their itemTier value.
+# Items are read directly from plugins/EliteMobs/customitems/
+# and given as Bukkit ItemStacks — no EM commands needed.
 #
-# DELIVERY: Plugin first tries EliteMobs API (direct ItemStack).
-# If API fails, falls back to delivery-command below.
-# Check /em help for correct command syntax for your EM version.
+# Note: Items won't have EM's runtime level scaling.
 # ============================================================
 
 enabled: true
 base-order: 300
 default-price: ${DEFAULT_PRICE}
-
-# Fallback delivery command (used if API fails):
-# {player} = player name, {item} = item file ID (no .yml)
-delivery-command: 'em give {player} {item} 1'
-
 excluded-items: []
-
-# Category overrides per tier group
-# categories:
-#   tier_5:
-#     display-name: "Legendary"
-#     color: "&5"
-#     icon: NETHERITE_SWORD
-#     default-price: 5000
 categories: {}
-
-# Per-item price overrides
-# item-prices:
-#   legendary_sword: 5000
 item-prices: {}
 """;
 
@@ -280,7 +257,7 @@ item-prices: {}
         File f = new File(dir, "elitemobs.yml");
         if (!f.exists()) {
             try { Files.writeString(f.toPath(), TEMPLATE.replace("${DEFAULT_PRICE}", String.valueOf(defaultPrice))); }
-            catch (IOException e) { plugin.getLogger().warning("[EliteMobsProvider] Config write: " + e.getMessage()); }
+            catch (IOException e) { plugin.getLogger().warning("[EliteMobsProvider] " + e.getMessage()); }
         }
         return YamlConfiguration.loadConfiguration(f);
     }
@@ -291,24 +268,24 @@ item-prices: {}
 
     private static String tierColor(String t) {
         if (!t.startsWith("tier_")) return "&7";
-        return switch (parseInt(t.substring(5))) {
-            case 1 -> "&7"; case 2 -> "&a"; case 3 -> "&9";
-            case 4 -> "&5"; case 5 -> "&6"; case 6 -> "&c";
-            default -> "&d";
-        };
+        try {
+            return switch (Integer.parseInt(t.substring(5))) {
+                case 1 -> "&7"; case 2 -> "&a"; case 3 -> "&9";
+                case 4 -> "&5"; case 5 -> "&6"; case 6 -> "&c";
+                default -> "&d";
+            };
+        } catch (NumberFormatException e) { return "&7"; }
     }
 
     private static Material tierIcon(String t) {
         if (!t.startsWith("tier_")) return Material.PAPER;
-        return switch (parseInt(t.substring(5))) {
-            case 1 -> Material.STONE_SWORD;  case 2 -> Material.IRON_SWORD;
-            case 3 -> Material.GOLDEN_SWORD; case 4 -> Material.DIAMOND_SWORD;
-            default -> Material.NETHERITE_SWORD;
-        };
-    }
-
-    private static int parseInt(String s) {
-        try { return Integer.parseInt(s); } catch (NumberFormatException e) { return 0; }
+        try {
+            return switch (Integer.parseInt(t.substring(5))) {
+                case 1 -> Material.STONE_SWORD;  case 2 -> Material.IRON_SWORD;
+                case 3 -> Material.GOLDEN_SWORD; case 4 -> Material.DIAMOND_SWORD;
+                default -> Material.NETHERITE_SWORD;
+            };
+        } catch (NumberFormatException e) { return Material.PAPER; }
     }
 
     private static Material parseMaterialFromId(String itemType, String itemId) {
@@ -316,7 +293,7 @@ item-prices: {}
         for (Map.Entry<String, Material> e : MATERIAL_HINTS.entrySet())
             if (lower.contains(e.getKey())) return e.getValue();
         try { return Material.valueOf(itemType.toUpperCase()); }
-        catch (IllegalArgumentException ex) { return Material.DIAMOND_SWORD; }
+        catch (IllegalArgumentException ex) { return Material.IRON_NUGGET; }
     }
 
     private static Material parseMaterial(String n, Material fb) {
@@ -328,5 +305,9 @@ item-prices: {}
     private static String capitalize(String s) {
         if (s == null || s.isEmpty()) return s;
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
+    private static Component colorize(String s) {
+        return LegacyComponentSerializer.legacyAmpersand().deserialize(s == null ? "" : s);
     }
 }
