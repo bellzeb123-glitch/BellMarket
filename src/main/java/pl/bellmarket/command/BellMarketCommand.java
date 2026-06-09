@@ -14,7 +14,6 @@ import org.bukkit.entity.Player;
 import pl.bellmarket.BellMarket;
 import pl.bellmarket.gui.AdminGUI;
 import pl.bellmarket.gui.PriceEditorGUI;
-import pl.bellmarket.model.Category;
 
 import java.util.*;
 
@@ -55,15 +54,6 @@ public class BellMarketCommand implements CommandExecutor, TabCompleter {
         if (!(sender instanceof Player player)) { sender.sendMessage("Player only."); return true; }
         if (!player.hasPermission("bellmarket.shop")) {
             player.sendMessage(plugin.getLang().component("no-permission")); return true;
-        }
-        // VIP players go directly to featured category
-        String featuredId = plugin.getConfig().getString("shop.featured-category-id", "");
-        if (!featuredId.isEmpty()) {
-            Category featured = plugin.getCategories().getCategory(featuredId);
-            if (featured != null && plugin.getCategories().canSee(player, featured)) {
-                plugin.getShopGUI().openCategory(player, featuredId, 0);
-                return true;
-            }
         }
         plugin.getShopGUI().openMainMenu(player);
         return true;
