@@ -194,7 +194,7 @@ public class EliteMobsProvider implements ProductProvider {
                     int customData = Integer.parseInt(item.itemModel);
                     meta.setCustomModelData(customData);
                 }
-            } catch (NumberFormatException | IllegalArgumentException ignored) {}
+            } catch (Throwable ignored) {}
         }
 
         // Enchantments

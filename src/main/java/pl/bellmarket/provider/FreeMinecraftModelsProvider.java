@@ -207,9 +207,8 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
 
             } else if (child.isDirectory()) {
                 // Check if this directory contains a .bbmodel at its root
-                boolean isModelDir = Arrays.stream(Objects.requireNonNull(
-                    child.listFiles(f -> f.getName().endsWith(".bbmodel")),
-                    new File[0])).length > 0;
+                File[] bmFiles = child.listFiles(f -> f.getName().endsWith(".bbmodel"));
+                boolean isModelDir = bmFiles != null && bmFiles.length > 0;
 
                 if (isModelDir) {
                     // Directory is a model
