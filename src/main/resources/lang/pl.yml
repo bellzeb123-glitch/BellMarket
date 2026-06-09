@@ -38,6 +38,7 @@ shop:
   confirm-yes: "&aPotwierdzam"
   confirm-no: "&cAnuluj"
   confirm-info: "&7Kupić &e{product}&7 za &6{symbol}{price}?"
+  vip-required: "&cTa kategoria wymaga statusu &5VIP&c. Subskrybuj lub skontaktuj się z adminem."
 
 admin:
   reloaded: "&aBellMarket przeładowany pomyślnie."
