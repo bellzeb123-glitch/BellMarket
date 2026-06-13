@@ -4,20 +4,20 @@ import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Player;
 import pl.bellmarket.BellMarket;
 import pl.bellmarket.event.VipTokenChangeEvent;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.logging.Level;
 
 public class VipTokenManager {
 
     private final BellMarket plugin;
     private final Map<UUID, Long> balances = new HashMap<>();
-    private FileConfiguration dataConfig;
     private File dataFile;
+    private FileConfiguration dataConfig;
 
     public VipTokenManager(BellMarket plugin) {
         this.plugin = plugin;
@@ -25,70 +25,75 @@ public class VipTokenManager {
     }
 
     public void reload() {
+        saveAll();
+        balances.clear();
         dataFile = new File(plugin.getDataFolder(), "viptokens.yml");
-        if (!dataFile.getParentFile().exists()) dataFile.getParentFile().mkdirs();
+        dataFile.getParentFile().mkdirs();
         if (!dataFile.exists()) {
             try { dataFile.createNewFile(); }
-            catch (IOException e) { plugin.getLogger().warning("Could not create viptokens.yml"); }
+            catch (IOException e) { plugin.getLogger().severe("Could not create viptokens.yml: " + e.getMessage()); }
         }
         dataConfig = YamlConfiguration.loadConfiguration(dataFile);
-        balances.clear();
-        var sec = dataConfig.getConfigurationSection("balances");
-        if (sec != null) {
-            for (String key : sec.getKeys(false)) {
-                try { balances.put(UUID.fromString(key), sec.getLong(key)); }
-                catch (IllegalArgumentException ignored) {}
-            }
+        loadAll();
+    }
+
+    private void loadAll() {
+        for (String key : dataConfig.getKeys(false)) {
+            try {
+                UUID uuid = UUID.fromString(key);
+                balances.put(uuid, dataConfig.getLong(key));
+            } catch (IllegalArgumentException ignored) {}
         }
     }
 
-    public long getBalance(Player player) { return balances.getOrDefault(player.getUniqueId(), 0L); }
-    public long getBalance(UUID uuid)     { return balances.getOrDefault(uuid, 0L); }
-
-    public boolean hasEnough(Player player, long amount) { return getBalance(player) >= amount; }
-
-    public void addTokens(Player player, long amount, String reason) {
-        long before = getBalance(player);
-        long after = before + amount;
-        balances.put(player.getUniqueId(), after);
-        savePlayer(player.getUniqueId());
-        Bukkit.getPluginManager().callEvent(new VipTokenChangeEvent(player, before, after, reason));
+    public long getBalance(UUID uuid) {
+        return balances.getOrDefault(uuid, 0L);
     }
 
-    public void takeTokens(Player player, long amount, String reason) {
-        long before = getBalance(player);
-        long after = Math.max(0, before - amount);
-        balances.put(player.getUniqueId(), after);
-        savePlayer(player.getUniqueId());
-        Bukkit.getPluginManager().callEvent(new VipTokenChangeEvent(player, before, after, reason));
+    public boolean hasEnough(UUID uuid, long amount) {
+        return getBalance(uuid) >= amount;
     }
 
-    public void setBalance(Player player, long amount) {
-        long before = getBalance(player);
-        long after = Math.max(0, amount);
-        balances.put(player.getUniqueId(), after);
-        savePlayer(player.getUniqueId());
-        Bukkit.getPluginManager().callEvent(new VipTokenChangeEvent(player, before, after, "set"));
+    public void setBalance(UUID uuid, long amount, String reason) {
+        long oldBal = getBalance(uuid);
+        long newBal = Math.max(0, amount);
+        balances.put(uuid, newBal);
+        fire(uuid, oldBal, newBal, reason);
+        savePlayer(uuid, newBal);
     }
 
-    private void savePlayer(UUID uuid) {
+    public void addCoins(UUID uuid, long amount, String reason) {
+        setBalance(uuid, getBalance(uuid) + amount, reason);
+    }
+
+    public void takeCoins(UUID uuid, long amount, String reason) {
+        setBalance(uuid, getBalance(uuid) - amount, reason);
+    }
+
+    private void fire(UUID uuid, long oldBal, long newBal, String reason) {
+        VipTokenChangeEvent event = new VipTokenChangeEvent(uuid, oldBal, newBal, reason);
+        Bukkit.getPluginManager().callEvent(event);
+    }
+
+    private void savePlayer(UUID uuid, long balance) {
+        dataConfig.set(uuid.toString(), balance);
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            dataConfig.set("balances." + uuid, balances.get(uuid));
             try { dataConfig.save(dataFile); }
-            catch (IOException e) { plugin.getLogger().warning("Could not save viptoken balance: " + e.getMessage()); }
+            catch (IOException e) { plugin.getLogger().log(Level.WARNING, "Could not save viptokens", e); }
         });
     }
 
     public void saveAll() {
-        balances.forEach((uuid, bal) -> dataConfig.set("balances." + uuid, bal));
+        if (dataConfig == null) return;
+        balances.forEach((uuid, bal) -> dataConfig.set(uuid.toString(), bal));
         try { dataConfig.save(dataFile); }
-        catch (IOException ignored) {}
+        catch (IOException e) { plugin.getLogger().log(Level.WARNING, "Could not save viptokens", e); }
     }
 
     public List<Map.Entry<UUID, Long>> getTopList(int limit) {
-        return balances.entrySet().stream()
-            .sorted(Map.Entry.<UUID, Long>comparingByValue().reversed())
-            .limit(limit).toList();
+        List<Map.Entry<UUID, Long>> sorted = new ArrayList<>(balances.entrySet());
+        sorted.sort((a, b) -> Long.compare(b.getValue(), a.getValue()));
+        return sorted.subList(0, Math.min(limit, sorted.size()));
     }
 
     public String getPlayerName(UUID uuid) {

@@ -1,24 +1,7 @@
-/*
- * BellMarket — Main plugin class (FREE, addon-ready)
- *
- * Addon architecture:
- *   - This is the FREE standalone plugin (name: BellMarket).
- *   - BellMarketPro is a SEPARATE plugin (name: BellMarketPro, depend: [BellMarket])
- *     that hooks in via the public methods below.
- *
- * Pro hooks exposed:
- *   + setTitleTransformer(Function<String,Component>) — Pro registers custom GUI titles
- *   + buildTitle(String) — used by ShopGUI everywhere; Free falls back to colorize
- *   + setProActive(String version) — Pro announces itself; banner reflects it
- *   + isProActive() / getProVersion() — state queries
- */
 package pl.bellmarket;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.command.PluginCommand;
-import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import pl.bellmarket.api.BellMarketAPI;
 import pl.bellmarket.command.BellCoinsCommand;
@@ -29,184 +12,144 @@ import pl.bellmarket.config.LangManager;
 import pl.bellmarket.currency.CurrencyManager;
 import pl.bellmarket.currency.VipTokenManager;
 import pl.bellmarket.event.BellMarketReloadEvent;
+import pl.bellmarket.gui.AdminGUI;
+import pl.bellmarket.gui.PriceEditorGUI;
 import pl.bellmarket.gui.ShopGUI;
 import pl.bellmarket.listener.AdminChatListener;
 import pl.bellmarket.listener.PlayerListener;
-import pl.bellmarket.model.Category;
 import pl.bellmarket.provider.*;
 
-import java.util.function.Function;
+import java.util.List;
 
 public class BellMarket extends JavaPlugin {
 
     private static BellMarket instance;
 
-    private LangManager langManager;
+    // Managers
+    private LangManager     langManager;
     private CurrencyManager currencyManager;
-    private CategoryManager categoryManager;
-    private ShopGUI shopGUI;
     private VipTokenManager vipTokens;
+    private CategoryManager categoryManager;
     private ProductProviderRegistry providerRegistry;
-    private BellMarketCommand bmCommand;
 
-    // ── Pro hooks ─────────────────────────────────────────────────────────
-    // titleTransformer is null in Free. The Pro addon registers a transformer
-    // that wraps inventory titles with the custom background texture character.
-    private Function<String, Component> titleTransformer = null;
-    private boolean proActive = false;
-    private String proVersion = null;
-
-    /** Called by the BellMarketPro addon to install its custom GUI title builder. */
-    public void setTitleTransformer(Function<String, Component> transformer) {
-        this.titleTransformer = transformer;
-        getLogger().info("[BellMarket] Pro GUI title transformer registered.");
-    }
-
-    /** Called by the BellMarketPro addon to announce activation (updates banner). */
-    public void setProActive(String version) {
-        this.proActive = true;
-        this.proVersion = version;
-        getLogger().info("[BellMarket] Pro addon v" + version + " activated.");
-        printProBanner();
-    }
-
-    public boolean isProActive()   { return proActive; }
-    public String  getProVersion() { return proVersion; }
-
-    /**
-     * Builds an inventory title Component.
-     * Pro intercepts this to add the custom background; Free returns colorized text.
-     */
-    public Component buildTitle(String raw) {
-        if (titleTransformer != null) {
-            try {
-                return titleTransformer.apply(raw);
-            } catch (Throwable t) {
-                getLogger().warning("[BellMarket] Title transformer error, using fallback: " + t.getMessage());
-            }
-        }
-        return LegacyComponentSerializer.legacyAmpersand().deserialize(raw);
-    }
-
-    // ────────────────────────────────────────────────────────────────────────
+    // GUI
+    private ShopGUI          shopGUI;
+    private AdminGUI         adminGUI;
+    private PriceEditorGUI   priceEditor;
 
     @Override
     public void onEnable() {
         instance = this;
         printBanner();
 
+        // Config
         saveDefaultConfig();
         saveResource("lang/en.yml", false);
         saveResource("lang/pl.yml", false);
-        ensureDefaultCategories();
+        saveResource("categories/00_tokens.yml", false);
+        saveResource("categories/07_mounts.yml", false);
+        saveResource("categories/08_custom.yml", false);
 
-        this.langManager      = new LangManager(this);
-        this.currencyManager  = new CurrencyManager(this);
-        this.categoryManager  = new CategoryManager(this);
-        this.shopGUI          = new ShopGUI(this);
-        this.vipTokens        = new VipTokenManager(this);
-        this.providerRegistry = new ProductProviderRegistry(this);
+        // Managers — LangManager first (uses MERGE for language fix)
+        langManager     = new LangManager(this);
+        currencyManager = new CurrencyManager(this);
+        vipTokens       = new VipTokenManager(this);
 
-        // Free ships with the SkinStudio provider only.
-        // MM / EM / FMM providers are registered by the BellMarketPro addon.
+        // Providers
+        providerRegistry = new ProductProviderRegistry(this);
         providerRegistry.register(new SkinStudioProvider(this));
+        providerRegistry.register(new MythicMobsProvider(this));
+        providerRegistry.register(new EliteMobsProvider(this));
+        providerRegistry.register(new FreeMinecraftModelsProvider(this));
 
-        BellMarketAPI.init(this, providerRegistry);
+        // Categories (loads from files + providers)
+        categoryManager = new CategoryManager(this);
 
-        for (Category c : providerRegistry.generateAll()) {
-            categoryManager.getCategories().add(c);
-        }
+        // GUI
+        shopGUI     = new ShopGUI(this);
+        adminGUI    = new AdminGUI(this);
+        priceEditor = new PriceEditorGUI(this);
 
-        this.bmCommand = new BellMarketCommand(this);
-        registerCmd("bellmarket", bmCommand);
-        registerCmd("bellcoins", new BellCoinsCommand(this));
-        registerCmd("vt", new VipTokenCommand(this));
+        // API
+        BellMarketAPI.init(this);
 
-        PluginManager pm = getServer().getPluginManager();
-        pm.registerEvents(new PlayerListener(this), this);
-        pm.registerEvents(new AdminChatListener(this, bmCommand.getAdminGUI()), this);
-        pm.registerEvents(bmCommand.getPriceEditor(), this);
+        // Commands
+        BellMarketCommand bmCmd = new BellMarketCommand(this);
+        PluginCommand bm = getCommand("bellmarket");
+        if (bm != null) { bm.setExecutor(bmCmd); bm.setTabCompleter(bmCmd); }
 
-        getLogger().info("BellMarket v" + getDescription().getVersion() + " enabled.");
-        getLogger().info("Categories loaded: " + categoryManager.getCategories().size());
-    }
+        BellCoinsCommand bcCmd = new BellCoinsCommand(this);
+        PluginCommand bc = getCommand("bellcoins");
+        if (bc != null) { bc.setExecutor(bcCmd); bc.setTabCompleter(bcCmd); }
 
-    private void ensureDefaultCategories() {
-        // Ship a couple of starter category files so the shop isn't empty on first run
-        String[] defaults = {"categories/00_tokens.yml", "categories/08_custom.yml", "categories/09_vip.yml"};
-        for (String path : defaults) {
-            try { saveResource(path, false); } catch (IllegalArgumentException ignored) {}
-        }
-    }
+        VipTokenCommand vtCmd = new VipTokenCommand(this);
+        PluginCommand vt = getCommand("vt");
+        if (vt != null) { vt.setExecutor(vtCmd); vt.setTabCompleter(vtCmd); }
 
-    private void registerCmd(String name, org.bukkit.command.CommandExecutor executor) {
-        PluginCommand cmd = getCommand(name);
-        if (cmd == null) return;
-        cmd.setExecutor(executor);
-        if (executor instanceof org.bukkit.command.TabCompleter tc) {
-            cmd.setTabCompleter(tc);
-        }
+        // Listeners
+        getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
+        getServer().getPluginManager().registerEvents(new AdminChatListener(this, adminGUI, priceEditor), this);
+
+        // Log
+        String currName = getConfig().getString("currency.name", "BellCoins");
+        List<?> cats = categoryManager.getCategories();
+        getLogger().info("BellMarket " + getDescription().getVersion()
+                + " enabled. " + cats.size() + " categories loaded. Currency: " + currName);
     }
 
     @Override
     public void onDisable() {
         if (currencyManager != null) currencyManager.saveAll();
         if (vipTokens != null) vipTokens.saveAll();
-        getLogger().info("BellMarket disabled. Data saved.");
+        BellMarketAPI.shutdown();
+        getLogger().info("BellMarket disabled.");
     }
 
+    /**
+     * Globalny reload — przeładowuje WSZYSTKIE managery.
+     * FIX: langManager.reload() zmienia język wszędzie (GUI, komendy, opisy, lore).
+     */
     public void reload() {
-        reloadConfig();
-        langManager.reload();
-        currencyManager.reload();
+        Bukkit.getPluginManager().callEvent(
+                new BellMarketReloadEvent(BellMarketReloadEvent.Phase.PRE_PROVIDERS));
+
+        reloadConfig();               // 1. config z dysku (language: pl/en)
+        langManager.reload();         // 2. KLUCZOWE — zmiana języka globalna
+        currencyManager.reload();     // 3. waluty
         vipTokens.reload();
+        categoryManager.reload();     // 4. kategorie + providerzy
+
         Bukkit.getPluginManager().callEvent(
-            new BellMarketReloadEvent(BellMarketReloadEvent.Phase.PRE_PROVIDERS));
-        categoryManager.reload();
-        for (Category c : providerRegistry.generateAll()) {
-            categoryManager.getCategories().add(c);
-        }
-        Bukkit.getPluginManager().callEvent(
-            new BellMarketReloadEvent(BellMarketReloadEvent.Phase.POST_PROVIDERS));
+                new BellMarketReloadEvent(BellMarketReloadEvent.Phase.POST_PROVIDERS));
     }
+
+    // ─── gettery (oryginalne nazwy) ──────────────────────────────────────
+
+    public static BellMarket getInstance()          { return instance; }
+    public LangManager     getLang()                { return langManager; }
+    public CurrencyManager getCurrency()            { return currencyManager; }
+    public VipTokenManager getVipTokens()           { return vipTokens; }
+    public CategoryManager getCategories()          { return categoryManager; }
+    public ProductProviderRegistry getProviderRegistry() { return providerRegistry; }
+    public ShopGUI         getShopGUI()             { return shopGUI; }
+    public AdminGUI        getAdminGUI()            { return adminGUI; }
+    public PriceEditorGUI  getPriceEditor()         { return priceEditor; }
+
+    // ─── baner ───────────────────────────────────────────────────────────
 
     private void printBanner() {
         var c = Bukkit.getConsoleSender();
         c.sendMessage("§r");
-        c.sendMessage("§6  ██████╗ ███████╗██╗     ██╗");
-        c.sendMessage("§6  ██╔══██╗██╔════╝██║     ██║");
-        c.sendMessage("§6  ██████╔╝█████╗  ██║     ██║");
-        c.sendMessage("§6  ██╔══██╗██╔══╝  ██║     ██║");
+        c.sendMessage("§6  ██████╗ ███████╗██╗     ██╗          ");
+        c.sendMessage("§6  ██╔══██╗██╔════╝██║     ██║          ");
+        c.sendMessage("§6  ██████╔╝█████╗  ██║     ██║          ");
+        c.sendMessage("§6  ██╔══██╗██╔══╝  ██║     ██║          ");
         c.sendMessage("§6  ██████╔╝███████╗███████╗███████╗§r§f Market");
-        c.sendMessage("§6  ╚═════╝ ╚══════╝╚══════╝╚══════╝");
+        c.sendMessage("§6  ╚═════╝ ╚══════╝╚══════╝╚══════╝     ");
         c.sendMessage("§r");
-        c.sendMessage("§7  Version §f" + getDescription().getVersion() + "  §7│  Author §bBellzeb");
-        c.sendMessage("§7  Edition §aFree §7│  Pro §8Not installed");
-        c.sendMessage("§r");
-    }
-
-    /** Re-prints the banner line showing Pro is now active (called by the addon). */
-    private void printProBanner() {
-        var c = Bukkit.getConsoleSender();
-        c.sendMessage("§r");
-        c.sendMessage("§6  ██████╗ ███████╗██╗     ██╗");
-        c.sendMessage("§6  ██╔══██╗██╔════╝██║     ██║");
-        c.sendMessage("§6  ██████╔╝█████╗  ██║     ██║");
-        c.sendMessage("§6  ██╔══██╗██╔══╝  ██║     ██║");
-        c.sendMessage("§6  ██████╔╝███████╗███████╗███████╗§r§f Market §d§lPRO");
-        c.sendMessage("§6  ╚═════╝ ╚══════╝╚══════╝╚══════╝");
-        c.sendMessage("§r");
-        c.sendMessage("§7  Version §f" + getDescription().getVersion() + "  §7│  Author §bBellzeb");
-        c.sendMessage("§7  Edition §d§lPRO §7v" + proVersion + " §a✓ active");
+        c.sendMessage("§7  Version §f" + getDescription().getVersion()
+                + "  §7│  Author §bBellzeb");
+        c.sendMessage("§7  Status  §aFree §7│ §7Pro §5Coming Soon");
         c.sendMessage("§r");
     }
-
-    public static BellMarket getInstance()               { return instance; }
-    public LangManager  getLang()                        { return langManager; }
-    public CurrencyManager getCurrency()                 { return currencyManager; }
-    public CategoryManager getCategories()               { return categoryManager; }
-    public ShopGUI getShopGUI()                          { return shopGUI; }
-    public VipTokenManager getVipTokens()                { return vipTokens; }
-    public ProductProviderRegistry getProviderRegistry() { return providerRegistry; }
-    public BellMarketCommand getBellMarketCommand()      { return bmCommand; }
 }

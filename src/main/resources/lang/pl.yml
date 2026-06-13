@@ -47,8 +47,37 @@ admin:
   coins-added: "&aMonety dodane pomyślnie."
   coins-removed: "&aMonety odjęte pomyślnie."
   purchase-log: "[BellMarket] {player} kupił {product} za {price} {currency}"
-  language-switched: '&8[&6BellMarket&8] &aJęzyk zmieniony na: &f{lang}'
-  language-current:  '&8[&6BellMarket&8] &7Aktualny język: &f{lang}'
+  language-switched: "&aJęzyk zmieniony na: &f{lang}"
+  language-current: "&7Aktualny język: &f{lang}"
+  gui-title: "&8⚙ &6BellMarket Admin &8⚙"
+  gui-reload-name: "&aPrzeładuj Plugin"
+  gui-reload-lore:
+    - "&7Przeładowuje wszystkie pliki"
+    - "&7konfiguracyjne i providerów."
+    - ""
+    - "&eKliknij &7aby przeładować"
+  gui-prices-name: "&6Edytor Cen"
+  gui-prices-lore:
+    - "&7Edytuj ceny produktów"
+    - "&7we wszystkich kategoriach."
+    - ""
+    - "&eKliknij &7aby otworzyć"
+  gui-lang-name: "&bJęzyk"
+  gui-lang-current: "Aktualny język:"
+  gui-stats-name: "&eStatystyki"
+  gui-stats-lore:
+    - "&7Statystyki pluginu"
+    - "&7(wkrótce)"
+  prices-title: "&8✦ &6Edytor Cen &8✦"
+  prices-category-title: "&8✦ &6{category} &8✦"
+  prices-back-to-admin: "Wróć do Panelu Admina"
+  prices-back-to-categories: "Wróć do kategorii"
+  prices-category-products: "Produkty: {count}"
+  prices-current-price: "Aktualna cena: {price} {currency}"
+  prices-enter: "&7Podaj nową cenę dla &e{product} &7(aktualnie: &6{current}&7):"
+  prices-cancel-hint: "&7Wpisz &ecancel &7lub &eanuluj &7aby anulować."
+  prices-cancelled: "&cZmiana ceny anulowana."
+  prices-saved: "&aCena dla &e{product} &austawiona na &6{price}&a."
 
 gui:
   currency-button: "&6✦ Kup {currency}"
@@ -60,7 +89,7 @@ gui:
   back-button: "&7← Wróć"
   next-page: "&7Następna strona →"
   prev-page: "&7← Poprzednia strona"
-  page-info: "&7Strona {current}/{total}"   # ← FIX: brakowało w sekcji gui
+  page-info: "&7Strona {current}/{total}"
   close-button: "&cZamknij"
   admin-panel: "&c⚙ Panel Admina"
   your-balance: "&6Twoje Saldo"
@@ -95,32 +124,3 @@ viptoken:
   no-permission:    '&cBrak uprawnień.'
   player-not-found: '&cNie znaleziono gracza: &f{name}'
   invalid-amount:   '&cIlość musi być liczbą dodatnią.'
-
-# ─────────────────────────────────────────────
-# Edytor cen (/bm prices i panel admina)
-# ─────────────────────────────────────────────
-price-editor:
-  title-tiers: "&8❀ &5&lEdycja cen &7— Poziomy"
-  title-skins: "&8❀ &5&lEdycja cen &7— {tier}"
-  no-tiers: "&cNie wykryto poziomów SkinStudio."
-  no-skins: "&cBrak skórek w poziomie: &f{tier}"
-  back-to-admin: "&c← Powrót do Admina"
-  back-to-tiers: "&c← Powrót do poziomów"
-  prev-page: "&7← Poprzednia strona"
-  next-page: "&7Następna strona →"
-  skins-count: "&7Skórki: &f{count}"
-  tier-default: "&8(domyślna poziomu)"
-  skin-price: "&7Cena: &e{price} {currency}"
-  click-set-price: "&eLewy klik: &fustaw cenę"
-  shift-reset: "&eShift-klik: &fprzywróć domyślną"
-  setting-price: "&7Ustawianie ceny dla &f{skin}"
-  type-price: "&7Wpisz nową cenę na czacie, lub wpisz &fcancel&7 aby anulować."
-  price-set: "&aUstawiono &f{skin} &ana &e{price} {currency}"
-  price-reset: "&aPrzywrócono &f{skin} &ado domyślnej ceny poziomu."
-  cancelled: "&7Anulowano edycję ceny."
-  invalid-price: "&cNieprawidłowa cena. Podaj dodatnią liczbę całkowitą."
-  tier-lore:
-    - "&7Skórki: &f{count}"
-    - "&7Domyślna cena: &e{price} {currency}"
-    - ""
-    - "&eKliknij &7aby edytować skórki"

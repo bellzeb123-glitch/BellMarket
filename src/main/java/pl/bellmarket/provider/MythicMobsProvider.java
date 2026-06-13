@@ -1,313 +1,198 @@
-/*
- * BellMarket - MythicMobsProvider (SESJA-3)
- *
- * Reads custom items defined in MythicMobs (plugins/MythicMobs/Items/*.yml)
- * and exposes them as BellMarket products.
- *
- * Primary source for BellMarket on servers using MythicMobs for custom gear.
- * BetterModel item-model keys are automatically detected from the generated
- * ItemStack's item model data.
- *
- * Grouping convention (same as SkinStudio):
- *   prefix_type  →  category "prefix"
- *   e.g. shop_sword, shop_axe  →  category "shop"
- *        tier1_helmet, tier1_chestplate  →  category "tier1"
- *
- * Admin configures which items to expose in providers/mythicmobs.yml.
- * Items can be filtered by prefix, excluded by ID, or fully manually listed.
- *
- * IMPORTANT: Uses MythicMobs API (soft-depend). If MM is not installed,
- * isAvailable() returns false and this provider is silently skipped.
- */
 package pl.bellmarket.provider;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.plugin.Plugin;
 import pl.bellmarket.BellMarket;
 import pl.bellmarket.currency.Currency;
 import pl.bellmarket.model.Category;
 import pl.bellmarket.model.Product;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.util.*;
+import java.util.logging.Level;
 
 public class MythicMobsProvider implements ProductProvider {
 
     private final BellMarket plugin;
 
-    public MythicMobsProvider(BellMarket plugin) {
-        this.plugin = plugin;
-    }
+    public MythicMobsProvider(BellMarket plugin) { this.plugin = plugin; }
 
-    @Override
-    public String getProviderId() { return "mythicmobs"; }
+    @Override public String getProviderId() { return "mythicmobs"; }
 
     @Override
     public boolean isAvailable() {
-        Plugin mm = plugin.getServer().getPluginManager().getPlugin("MythicMobs");
-        return mm != null && mm.isEnabled();
+        var p = Bukkit.getPluginManager().getPlugin("MythicMobs");
+        return p != null && p.isEnabled();
     }
 
     @Override
     public List<Category> generateCategories(long defaultPrice) {
-        Plugin mm = plugin.getServer().getPluginManager().getPlugin("MythicMobs");
-        if (mm == null) return Collections.emptyList();
+        if (!isAvailable()) return Collections.emptyList();
 
-        FileConfiguration cfg = loadOrCreateProviderConfig(defaultPrice);
+        FileConfiguration cfg = plugin.getProviderRegistry().loadOrCreateProviderConfig("mythicmobs");
         if (!cfg.getBoolean("enabled", true)) return Collections.emptyList();
 
-        long globalDefault = cfg.getLong("default-price", defaultPrice);
-        List<String> prefixFilter = cfg.getStringList("include-prefixes"); // empty = all
-        List<String> excluded     = cfg.getStringList("excluded-items");
-        ConfigurationSection cats = cfg.getConfigurationSection("categories");
+        long providerDefaultPrice = cfg.getLong("default-price", defaultPrice);
+        List<String> includePrefixes = cfg.getStringList("include-prefixes");
+        List<String> excludedItems   = cfg.getStringList("excluded-items");
+        int baseOrder = cfg.getInt("base-order", 30);
         ConfigurationSection itemPrices = cfg.getConfigurationSection("item-prices");
 
-        // Collect all MythicMobs item names via API
-        List<String> allItemNames = getMythicItemNames(mm);
-        if (allItemNames.isEmpty()) {
-            plugin.getLogger().info("[MythicMobsProvider] No items found in MythicMobs.");
+        List<String> itemNames = getMythicItemNames();
+        if (itemNames.isEmpty()) {
+            plugin.getLogger().info("[MythicMobs] No items found.");
             return Collections.emptyList();
         }
 
-        // Filter by prefix
-        if (!prefixFilter.isEmpty()) {
-            allItemNames = allItemNames.stream()
-                .filter(name -> prefixFilter.stream()
-                    .anyMatch(p -> name.toLowerCase(Locale.ROOT).startsWith(p.toLowerCase(Locale.ROOT))))
-                .toList();
-        }
-        // Remove excluded
-        allItemNames = allItemNames.stream()
-            .filter(name -> !excluded.contains(name))
-            .toList();
-
-        // Group by prefix (first segment before _)
-        Map<String, List<String>> byCategory = new LinkedHashMap<>();
-        for (String itemName : allItemNames) {
-            String cat = categoryOf(itemName);
-            byCategory.computeIfAbsent(cat, k -> new ArrayList<>()).add(itemName);
+        // Filter by include-prefixes
+        if (!includePrefixes.isEmpty()) {
+            itemNames = itemNames.stream()
+                    .filter(n -> includePrefixes.stream().anyMatch(p -> n.toLowerCase().startsWith(p.toLowerCase())))
+                    .toList();
         }
 
-        // Build categories
-        List<Category> out = new ArrayList<>();
-        int orderBase = cfg.getInt("base-order", 200);
-        int orderCursor = orderBase;
+        // Group by prefix (categoryOf)
+        Map<String, List<String>> grouped = new LinkedHashMap<>();
+        for (String itemName : itemNames) {
+            if (excludedItems.contains(itemName)) continue;
+            String cat = categoryOf(itemName, cfg);
+            grouped.computeIfAbsent(cat, k -> new ArrayList<>()).add(itemName);
+        }
 
-        for (Map.Entry<String, List<String>> entry : byCategory.entrySet()) {
+        List<Category> result = new ArrayList<>();
+        int order = baseOrder;
+
+        for (Map.Entry<String, List<String>> entry : grouped.entrySet()) {
             String catKey = entry.getKey();
-            List<String> items = entry.getValue();
+            ConfigurationSection catCfg = cfg.isConfigurationSection("categories." + catKey)
+                    ? cfg.getConfigurationSection("categories." + catKey) : null;
 
-            // Category config override
-            ConfigurationSection catCfg = cats != null ? cats.getConfigurationSection(catKey) : null;
-            String catDisplay = catCfg != null ? catCfg.getString("display-name", capitalize(catKey)) : capitalize(catKey);
-            String catColor   = catCfg != null ? catCfg.getString("color", "&a") : "&a";
-            Material catIcon  = parseMaterial(catCfg != null ? catCfg.getString("icon") : null, Material.EMERALD);
-            long catDefault   = catCfg != null ? catCfg.getLong("default-price", globalDefault) : globalDefault;
+            String displayName = catCfg != null ? catCfg.getString("display-name",
+                    ProductProviderRegistry.capitalize(catKey)) : ProductProviderRegistry.capitalize(catKey);
+            String color = catCfg != null ? catCfg.getString("color", "&a") : "&a";
+            Material icon = catCfg != null
+                    ? ProductProviderRegistry.parseMaterial(catCfg.getString("icon"), Material.EMERALD)
+                    : Material.EMERALD;
 
             List<Product> products = new ArrayList<>();
-            for (String itemName : items) {
-                long price = (itemPrices != null && itemPrices.contains(itemName))
-                    ? itemPrices.getLong(itemName) : catDefault;
-
-                Product p = buildProduct(mm, itemName, price, catColor, catDisplay);
+            for (String itemName : entry.getValue()) {
+                long price = itemPrices != null ? itemPrices.getLong(itemName, providerDefaultPrice) : providerDefaultPrice;
+                Product p = buildProduct(itemName, price, color, catKey);
                 if (p != null) products.add(p);
             }
+
             if (products.isEmpty()) continue;
 
-            String catName = catColor + "⚔ " + catDisplay;
-            Category cat = new Category(
-                "mythicmobs_" + catKey, catName, catDisplay,
-                orderCursor, true, catIcon, catName,
-                List.of("&7MythicMobs Items", "&7Items: &f" + products.size(), "", "&eClick to open"),
-                products
-            );
-            out.add(cat);
-            orderCursor += 10;
+            result.add(new Category(
+                    "mythicmobs_" + catKey,
+                    "mythicmobs_" + catKey,
+                    color + displayName,
+                    order++,
+                    true,
+                    icon,
+                    color + displayName,
+                    List.of("&7MythicMobs Items",
+                            "&7Items: &f" + products.size(),
+                            "",
+                            "&eClick to open"),
+                    products
+            ));
         }
 
-        plugin.getLogger().info("[MythicMobsProvider] Generated " + out.size() + " categories, "
-            + out.stream().mapToInt(c -> c.getProducts().size()).sum() + " products total.");
-        return out;
+        plugin.getLogger().info("[MythicMobs] Loaded " + result.size() + " categories, "
+                + result.stream().mapToInt(c -> c.getProducts().size()).sum() + " items.");
+        return result;
     }
 
-    /**
-     * Builds a Product from a MythicMobs item via the API.
-     * Uses the generated ItemStack for material and item-model detection.
-     */
+    // ─── reflection ──────────────────────────────────────────────────────
+
     @SuppressWarnings("unchecked")
-    private Product buildProduct(Plugin mm, String itemName, long price,
-                                  String catColor, String catDisplay) {
+    private List<String> getMythicItemNames() {
         try {
-            // Use MythicMobs API via reflection to avoid hard compile dependency
-            Object mmApi = mm.getClass().getMethod("getItemManager")
-                .invoke(mm.getClass().getMethod("inst").invoke(null));
-
-            Optional<?> itemOpt = (Optional<?>) mmApi.getClass()
-                .getMethod("getItem", String.class).invoke(mmApi, itemName);
-
-            if (itemOpt.isEmpty()) return null;
-            Object mythicItem = itemOpt.get();
-
-            // Generate the actual ItemStack
-            ItemStack stack = (ItemStack) mythicItem.getClass()
-                .getMethod("generateItemStack", int.class).invoke(mythicItem, 1);
-
-            if (stack == null || stack.getType().isAir()) return null;
-
-            Material material  = stack.getType();
-            String displayName = itemName; // fallback
-            String itemModel   = null;
-
-            ItemMeta meta = stack.getItemMeta();
-            if (meta != null) {
-                if (meta.hasDisplayName()) {
-                    displayName = net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
-                        .legacyAmpersand().serialize(meta.displayName());
-                }
-                // Extract item-model key (BetterModel / resource pack)
+            var mm = Bukkit.getPluginManager().getPlugin("MythicMobs");
+            if (mm == null) return List.of();
+            Object inst = mm.getClass().getMethod("inst").invoke(null);
+            Object itemManager = inst.getClass().getMethod("getItemManager").invoke(inst);
+            Object items = itemManager.getClass().getMethod("getItems").invoke(itemManager);
+            List<String> names = new ArrayList<>();
+            for (Object item : (Iterable<?>) items) {
                 try {
-                    NamespacedKey modelKey = (NamespacedKey) meta.getClass()
-                        .getMethod("getItemModel").invoke(meta);
-                    if (modelKey != null) itemModel = modelKey.toString();
-                } catch (Throwable ignored) {}
+                    String internalName = (String) item.getClass().getMethod("getInternalName").invoke(item);
+                    names.add(internalName);
+                } catch (Exception ignored) {}
             }
+            return names;
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "[MythicMobs] Could not load items via reflection: " + e.getMessage());
+            return List.of();
+        }
+    }
 
-            return new Product.Builder()
-                .id("mythicmobs_" + itemName)
+    private String categoryOf(String itemName, FileConfiguration cfg) {
+        if (!cfg.getBoolean("group-by-prefix", true)) return "items";
+        int idx = itemName.indexOf('_');
+        return idx > 0 ? itemName.substring(0, idx).toLowerCase() : "misc";
+    }
+
+    private Product buildProduct(org.bukkit.plugin.Plugin mmPlugin, String itemName, long price, String color, String catKey) {
+        return buildProduct(itemName, price, color, catKey);
+    }
+
+    private Product buildProduct(String itemName, long price, String color, String catKey) {
+        // Try to get a real ItemStack from MM for the icon
+        ItemStack icon = tryGetMMItemStack(itemName);
+        Material iconMat = icon != null ? icon.getType() : Material.PAPER;
+        if (iconMat == Material.AIR) iconMat = Material.PAPER;
+
+        // Display name from ItemStack meta
+        String displayName = color + ProductProviderRegistry.capitalize(itemName);
+        if (icon != null) {
+            ItemMeta meta = icon.getItemMeta();
+            if (meta != null && meta.hasDisplayName()) {
+                // Convert Adventure component to legacy string
+                try {
+                    displayName = net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
+                            .legacyAmpersand().serialize(meta.displayName());
+                } catch (Exception ignored) {}
+            }
+        }
+
+        return new Product.Builder()
+                .id("mm_" + itemName)
                 .type(Product.Type.COMMAND)
                 .name(displayName)
-                .lore(List.of(
-                    "&7Source: &fMythicMobs",
-                    "&7Tier: " + catColor + catDisplay,
-                    "",
-                    "&6Price: &e" + price + " BellCoins",
-                    "",
-                    "&aLeft-click &7to purchase"
-                ))
+                .lore(List.of("&7Source: &fMythicMobs",
+                              "&6Price: &e" + price + " &7" + plugin.getLang().getCurrencyName(),
+                              "",
+                              "&aLeft-click &7to purchase"))
                 .price(price)
-                .enabled(true)
-                .iconMaterial(material)
-                .iconItemModel(itemModel)
-                .commands(List.of("mmoitems give " + itemName + " {player}"))
+                .iconMaterial(iconMat)
+                .commands(List.of("mmoitems give {player} " + itemName))
                 .currency(Currency.BELLCOINS)
                 .providerSource("mythicmobs")
                 .build();
-
-        } catch (Throwable t) {
-            plugin.getLogger().warning("[MythicMobsProvider] Could not build product '" + itemName
-                + "': " + t.getClass().getSimpleName() + ": " + t.getMessage());
-            return null;
-        }
     }
 
     @SuppressWarnings("unchecked")
-    private List<String> getMythicItemNames(Plugin mm) {
+    private ItemStack tryGetMMItemStack(String itemName) {
         try {
+            var mm = Bukkit.getPluginManager().getPlugin("MythicMobs");
+            if (mm == null) return null;
             Object inst = mm.getClass().getMethod("inst").invoke(null);
             Object itemManager = inst.getClass().getMethod("getItemManager").invoke(inst);
-            Collection<String> names = (Collection<String>)
-                itemManager.getClass().getMethod("getItemNames").invoke(itemManager);
-            return new ArrayList<>(names);
-        } catch (Throwable t) {
-            plugin.getLogger().warning("[MythicMobsProvider] Could not fetch item names: " + t.getMessage());
-            return Collections.emptyList();
-        }
-    }
-
-    private FileConfiguration loadOrCreateProviderConfig(long defaultPrice) {
-        File dir = new File(plugin.getDataFolder(), "providers");
-        if (!dir.exists()) dir.mkdirs();
-        File f = new File(dir, "mythicmobs.yml");
-        if (!f.exists()) {
-            try {
-                Files.writeString(f.toPath(), buildTemplate(defaultPrice));
-                plugin.getLogger().info("[MythicMobsProvider] Created providers/mythicmobs.yml");
-            } catch (IOException e) {
-                plugin.getLogger().warning("[MythicMobsProvider] Could not write config: " + e.getMessage());
+            Object optional = itemManager.getClass().getMethod("getItem", String.class)
+                    .invoke(itemManager, itemName);
+            // Optional<MythicItem>
+            if (optional instanceof Optional<?> opt && opt.isPresent()) {
+                Object mythicItem = opt.get();
+                ItemStack generated = (ItemStack) mythicItem.getClass()
+                        .getMethod("generateItemStack", int.class).invoke(mythicItem, 1);
+                return generated;
             }
-        }
-        return YamlConfiguration.loadConfiguration(f);
-    }
-
-    private String buildTemplate(long defaultPrice) {
-        return """
-# ============================================================
-#  BellMarket - MythicMobs Provider Configuration
-# ============================================================
-# Reads items from MythicMobs and adds them to the shop.
-# Changes apply on /bm reload.
-#
-# Item naming convention (same as SkinStudio):
-#   prefix_type → category "prefix"
-#   e.g. shop_sword, shop_axe → category "shop"
-#        tier1_helmet, tier1_chest → category "tier1"
-# ============================================================
-
-enabled: true
-
-# Starting order for MM categories in shop (SkinStudio uses 10-90)
-base-order: 200
-
-# Global default price for any MM item without a specific price
-default-price: """ + defaultPrice + """
-
-
-# ─── Include filter ──────────────────────────────────────────
-# Only expose items whose name STARTS with one of these prefixes.
-# Leave empty [] to expose ALL MythicMobs items.
-# Recommended: set a "shop_" prefix on items you want to sell.
-#
-# Example:
-# include-prefixes:
-#   - shop_
-#   - market_
-include-prefixes: []
-
-# ─── Excluded items ──────────────────────────────────────────
-# Never show these specific items, even if they match include-prefixes.
-excluded-items: []
-
-# ─── Category customisation ──────────────────────────────────
-# Override auto-detected category metadata per prefix-group.
-# If not listed, plugin uses: Capitalize(prefix), green color, EMERALD icon.
-#
-# categories:
-#   shop:
-#     display-name: "Shop Items"
-#     color: "&a"
-#     icon: EMERALD
-#     default-price: 1000
-categories: {}
-
-# ─── Per-item price overrides (highest priority) ─────────────
-# item-prices:
-#   shop_legendary_sword: 5000
-#   shop_basic_axe: 200
-item-prices: {}
-""";
-    }
-
-    private static String categoryOf(String itemName) {
-        int idx = itemName.indexOf('_');
-        return idx > 0 ? itemName.substring(0, idx).toLowerCase(Locale.ROOT) : "misc";
-    }
-
-    private static String capitalize(String s) {
-        if (s == null || s.isEmpty()) return s;
-        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
-    }
-
-    private static Material parseMaterial(String name, Material fallback) {
-        if (name == null || name.isEmpty()) return fallback;
-        try { return Material.valueOf(name.toUpperCase(Locale.ROOT)); }
-        catch (IllegalArgumentException e) { return fallback; }
+        } catch (Exception ignored) {}
+        return null;
     }
 }

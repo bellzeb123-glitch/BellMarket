@@ -1,10 +1,16 @@
 package pl.bellmarket.provider;
 
-import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import pl.bellmarket.BellMarket;
-import pl.bellmarket.model.Category;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.logging.Level;
 
 public class ProductProviderRegistry {
 
@@ -16,57 +22,63 @@ public class ProductProviderRegistry {
     }
 
     public void register(ProductProvider provider) {
-        Objects.requireNonNull(provider, "provider == null");
         providers.removeIf(p -> p.getProviderId().equals(provider.getProviderId()));
         providers.add(provider);
-        plugin.getLogger().info("[Providers] Registered: " + provider.getProviderId());
     }
 
     public void unregister(String providerId) {
         providers.removeIf(p -> p.getProviderId().equals(providerId));
     }
 
-    public List<ProductProvider> getAll() {
+    public List<ProductProvider> getProviders() {
         return Collections.unmodifiableList(providers);
     }
 
-    public Optional<ProductProvider> get(String providerId) {
-        return providers.stream().filter(p -> p.getProviderId().equals(providerId)).findFirst();
-    }
+    /**
+     * Loads (or creates) a provider config file in plugins/BellMarket/providers/<id>.yml.
+     * If the file doesn't exist, copies the default from the jar.
+     * Used by all providers.
+     */
+    public FileConfiguration loadOrCreateProviderConfig(String providerId) {
+        String resourcePath = "providers/" + providerId + ".yml";
+        File diskFile = new File(plugin.getDataFolder(), resourcePath);
 
-    public List<Category> generateAll() {
-        List<Category> out = new ArrayList<>();
-        for (ProductProvider provider : providers) {
-            String id = provider.getProviderId();
-            if (!isEnabledInConfig(id)) {
-                plugin.getLogger().info("[Providers] " + id + " — disabled in config, skipping");
-                continue;
-            }
-            if (!provider.isAvailable()) {
-                plugin.getLogger().info("[Providers] " + id + " — not available (plugin missing), skipping");
-                continue;
-            }
-            try {
-                long defaultPrice = getDefaultPrice(id);
-                List<Category> cats = provider.generateCategories(defaultPrice);
-                out.addAll(cats);
-                int totalProducts = cats.stream().mapToInt(c -> c.getProducts().size()).sum();
-                plugin.getLogger().info("[Providers] " + id + " → " + cats.size()
-                    + " categories, " + totalProducts + " products total");
-            } catch (Exception e) {
-                plugin.getLogger().warning("[Providers] " + id + " — generation failed: " + e.getMessage());
-                e.printStackTrace();
+        if (!diskFile.exists()) {
+            diskFile.getParentFile().mkdirs();
+            InputStream jarStream = plugin.getResource(resourcePath);
+            if (jarStream != null) {
+                // Copy default from jar
+                try (jarStream) {
+                    FileConfiguration defaults = YamlConfiguration.loadConfiguration(
+                            new InputStreamReader(jarStream, StandardCharsets.UTF_8));
+                    defaults.save(diskFile);
+                } catch (IOException e) {
+                    plugin.getLogger().log(Level.WARNING,
+                            "Could not save default provider config: " + resourcePath, e);
+                }
             }
         }
-        return out;
+
+        return YamlConfiguration.loadConfiguration(diskFile);
     }
 
-    private boolean isEnabledInConfig(String id) {
-        ConfigurationSection sec = plugin.getConfig().getConfigurationSection("providers." + id);
-        return sec == null || sec.getBoolean("enabled", true);
+    /**
+     * Utility: parse a Material name, returning fallback on failure.
+     */
+    public static org.bukkit.Material parseMaterial(String name, org.bukkit.Material fallback) {
+        if (name == null || name.isBlank()) return fallback;
+        try {
+            return org.bukkit.Material.valueOf(name.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return fallback;
+        }
     }
 
-    private long getDefaultPrice(String id) {
-        return plugin.getConfig().getLong("providers." + id + ".default-price", 500);
+    /**
+     * Utility: capitalize first letter.
+     */
+    public static String capitalize(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1).toLowerCase(Locale.ROOT);
     }
 }

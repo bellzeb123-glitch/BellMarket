@@ -8,41 +8,40 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import pl.bellmarket.BellMarket;
 import pl.bellmarket.gui.AdminGUI;
+import pl.bellmarket.gui.PriceEditorGUI;
 
-/**
- * Routes chat input to whichever admin GUI is awaiting it.
- *
- * Both AdminGUI and PriceEditorGUI can request a chat value (e.g. a new price).
- * This listener checks each in turn and forwards the typed line.
- */
 public class AdminChatListener implements Listener {
 
     private final BellMarket plugin;
     private final AdminGUI adminGUI;
+    private final PriceEditorGUI priceEditor;
 
-    public AdminChatListener(BellMarket plugin, AdminGUI adminGUI) {
+    public AdminChatListener(BellMarket plugin, AdminGUI adminGUI, PriceEditorGUI priceEditor) {
         this.plugin = plugin;
         this.adminGUI = adminGUI;
+        this.priceEditor = priceEditor;
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onChat(AsyncChatEvent event) {
         Player player = event.getPlayer();
-        String message = PlainTextComponentSerializer.plainText().serialize(event.message());
 
-        // 1. Price editor (skin price input)
-        var bmCmd = plugin.getBellMarketCommand();
-        if (bmCmd != null && bmCmd.getPriceEditor() != null
-                && bmCmd.getPriceEditor().isAwaitingInput(player)) {
+        // Check PriceEditorGUI first (price input)
+        if (priceEditor.isAwaitingInput(player)) {
             event.setCancelled(true);
-            bmCmd.getPriceEditor().handleChatInput(player, message);
+            String text = PlainTextComponentSerializer.plainText().serialize(event.message());
+            // Run on main thread
+            player.getServer().getScheduler().runTask(plugin, () ->
+                    priceEditor.handleChatInput(player, text));
             return;
         }
 
-        // 2. Admin GUI (future text inputs)
-        if (adminGUI != null && adminGUI.isAwaitingInput(player)) {
+        // Check AdminGUI (rename input, future)
+        if (adminGUI.isAwaitingInput(player)) {
             event.setCancelled(true);
-            adminGUI.handleChatInput(player, message);
+            String text = PlainTextComponentSerializer.plainText().serialize(event.message());
+            player.getServer().getScheduler().runTask(plugin, () ->
+                    adminGUI.handleChatInput(player, text));
         }
     }
 }
