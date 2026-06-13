@@ -100,7 +100,7 @@ public class ShopGUI implements Listener {
     public void openMainMenu(Player player) {
         ShopHolder holder = new ShopHolder(null, 0);
         String title = plugin.getConfig().getString("shop.title", "&8✦ &6BellMarket &8✦");
-        Inventory inv = Bukkit.createInventory(holder, MAIN_SIZE, plugin.buildTitle(title));
+        Inventory inv = Bukkit.createInventory(holder, MAIN_SIZE, colorize(title));
         holder.setInventory(inv);
         fillBackground(inv, MAIN_SIZE);
 
@@ -151,7 +151,7 @@ public class ShopGUI implements Listener {
         ShopHolder holder = new ShopHolder(categoryId, page);
         String rawTitle = plugin.getConfig().getString("shop.category-title", "&8✦ &6{category} &8✦");
         Inventory inv = Bukkit.createInventory(holder, GUI_SIZE,
-            plugin.buildTitle(rawTitle.replace("{category}", category.getDisplayName())));
+            colorize(rawTitle.replace("{category}", category.getDisplayName())));
         holder.setInventory(inv);
         fillBackground(inv, GUI_SIZE);
 
@@ -187,7 +187,7 @@ public class ShopGUI implements Listener {
         if (product == null) return;
         ConfirmHolder holder = new ConfirmHolder(categoryId, productId, page);
         Inventory inv = Bukkit.createInventory(holder, 27,
-            plugin.buildTitle(plugin.getLang().getRaw("shop.confirm-title")));
+            colorize(plugin.getLang().getRaw("shop.confirm-title")));
         holder.setInventory(inv);
         fillBackground(inv, 27);
         inv.setItem(13, product.buildIcon());
