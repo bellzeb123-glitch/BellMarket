@@ -1,0 +1,11 @@
+{
+  "providers": [
+    {
+      "type": "bitmap",
+      "file": "bellmarket:gui/shop_background.png",
+      "ascent": 14,
+      "height": 256,
+      "chars": ["\uE100"]
+    }
+  ]
+}

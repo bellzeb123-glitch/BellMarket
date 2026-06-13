@@ -172,15 +172,22 @@ public class AdminGUI implements Listener {
             if (index >= cats.size()) return;
             Category cat = cats.get(index);
             player.closeInventory();
-            player.sendMessage(c("&8[&6BellMarket&8] &7Editing prices: &f" + cat.getName()));
             player.playSound(player, Sound.UI_BUTTON_CLICK, 1f, 1f);
-            // Open the price editor for this category (not the shop)
+            // The skin price editor only applies to SkinStudio tiers.
+            // For other categories, direct the admin to the price editor button / YAML.
+            String id = cat.getId();
+            boolean isSkinCategory = id.startsWith("skinstudio") || id.equals("00_tokens")
+                || id.toLowerCase().contains("skin");
             Bukkit.getScheduler().runTask(plugin, () -> {
                 var bmCmd = plugin.getBellMarketCommand();
-                if (bmCmd != null && bmCmd.getPriceEditor() != null) {
-                    bmCmd.getPriceEditor().openSkinList(player, cat.getId(), 0);
+                if (bmCmd != null && bmCmd.getPriceEditor() != null && isSkinCategory) {
+                    bmCmd.getPriceEditor().openTierList(player);
                 } else {
-                    player.sendMessage(c("&cPrice editor unavailable."));
+                    player.sendMessage(c("&8[&6BellMarket&8] &7Price editing is available for"));
+                    player.sendMessage(c("&7SkinStudio categories via the &eEdit Prices&7 button."));
+                    player.sendMessage(c("&7Other categories: edit &fcategories/" + id + ".yml&7 + &f/bm reload"));
+                    // Reopen admin so they aren't stuck
+                    bmCmd.getAdminGUI().openFor(player);
                 }
             });
         }
