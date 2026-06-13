@@ -47,37 +47,8 @@ admin:
   coins-added: "&aCoins added successfully."
   coins-removed: "&aCoins removed successfully."
   purchase-log: "[BellMarket] {player} bought {product} for {price} {currency}"
-  language-switched: "&aLanguage switched to: &f{lang}"
-  language-current: "&7Current language: &f{lang}"
-  gui-title: "&8⚙ &6BellMarket Admin &8⚙"
-  gui-reload-name: "&aReload Plugin"
-  gui-reload-lore:
-    - "&7Reloads all configuration"
-    - "&7files and providers."
-    - ""
-    - "&eClick &7to reload"
-  gui-prices-name: "&6Price Editor"
-  gui-prices-lore:
-    - "&7Edit product prices"
-    - "&7for all categories."
-    - ""
-    - "&eClick &7to open"
-  gui-lang-name: "&bLanguage"
-  gui-lang-current: "Current language:"
-  gui-stats-name: "&eStatistics"
-  gui-stats-lore:
-    - "&7Plugin statistics"
-    - "&7(coming soon)"
-  prices-title: "&8✦ &6Price Editor &8✦"
-  prices-category-title: "&8✦ &6{category} &8✦"
-  prices-back-to-admin: "Back to Admin Panel"
-  prices-back-to-categories: "Back to categories"
-  prices-category-products: "Products: {count}"
-  prices-current-price: "Current price: {price} {currency}"
-  prices-enter: "&7Enter new price for &e{product} &7(current: &6{current}&7):"
-  prices-cancel-hint: "&7Type &ecancel &7to cancel."
-  prices-cancelled: "&cPrice change cancelled."
-  prices-saved: "&aPrice for &e{product} &aset to &6{price}&a."
+  language-switched: '&8[&6BellMarket&8] &aLanguage switched to: &f{lang}'
+  language-current:  '&8[&6BellMarket&8] &7Current language: &f{lang}'
 
 gui:
   currency-button: "&6✦ Buy {currency}"
@@ -89,7 +60,7 @@ gui:
   back-button: "&7← Back"
   next-page: "&7Next Page →"
   prev-page: "&7← Previous Page"
-  page-info: "&7Page {current}/{total}"
+  page-info: "&7Page {current}/{total}"   # ← FIX: was missing from gui section
   close-button: "&cClose"
   admin-panel: "&c⚙ Admin Panel"
   your-balance: "&6Your Balance"
@@ -124,3 +95,32 @@ viptoken:
   no-permission:    '&cYou do not have permission.'
   player-not-found: '&cPlayer not found: &f{name}'
   invalid-amount:   '&cAmount must be a positive number.'
+
+# ─────────────────────────────────────────────
+# Price Editor (/bm prices and admin panel)
+# ─────────────────────────────────────────────
+price-editor:
+  title-tiers: "&8❀ &5&lEdit Prices &7— Tiers"
+  title-skins: "&8❀ &5&lEdit Prices &7— {tier}"
+  no-tiers: "&cNo SkinStudio tiers detected."
+  no-skins: "&cNo skins in tier: &f{tier}"
+  back-to-admin: "&c← Back to Admin"
+  back-to-tiers: "&c← Back to tiers"
+  prev-page: "&7← Previous Page"
+  next-page: "&7Next Page →"
+  skins-count: "&7Skins: &f{count}"
+  tier-default: "&8(tier default)"
+  skin-price: "&7Price: &e{price} {currency}"
+  click-set-price: "&eLeft-click: &fset price"
+  shift-reset: "&eShift-click: &freset to tier default"
+  setting-price: "&7Setting price for &f{skin}"
+  type-price: "&7Type the new price in chat, or type &fcancel&7 to abort."
+  price-set: "&aSet &f{skin} &ato &e{price} {currency}"
+  price-reset: "&aReset &f{skin} &ato tier default."
+  cancelled: "&7Price edit cancelled."
+  invalid-price: "&cInvalid price. Enter a positive whole number."
+  tier-lore:
+    - "&7Skins: &f{count}"
+    - "&7Default price: &e{price} {currency}"
+    - ""
+    - "&eClick &7to edit skins"

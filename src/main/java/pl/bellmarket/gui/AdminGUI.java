@@ -1,170 +1,226 @@
 package pl.bellmarket.gui;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import pl.bellmarket.BellMarket;
-import pl.bellmarket.config.LangManager;
+import pl.bellmarket.model.Category;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
-/**
- * AdminGUI — panel admina BellMarket.
- *
- * Slots (54):
- *   10  Reload
- *   12  Price Editor  ← NEW — opens PriceEditorGUI with back button
- *   14  Language toggle
- *   16  Stats (placeholder)
- *   49  Close
- *
- * All texts from LangManager.getRaw() → /bm lang zmienia je globalnie.
- */
 public class AdminGUI implements Listener {
 
+    public static class AdminHolder implements InventoryHolder {
+        private final String view;
+        private Inventory inv;
+        public AdminHolder(String view)           { this.view = view; }
+        @Override public Inventory getInventory() { return inv; }
+        public void setInventory(Inventory inv)   { this.inv = inv; }
+        public String getView()                   { return view; }
+    }
+
+    private static final int FIRST_CAT_SLOT = 27;
+
     private final BellMarket plugin;
-
-    // Chat input awaiting (for future rename features)
-    private final Map<UUID, String> awaitingInput = new ConcurrentHashMap<>();
-
-    private static final int SLOT_RELOAD = 10;
-    private static final int SLOT_PRICES = 12;
-    private static final int SLOT_LANG   = 14;
-    private static final int SLOT_STATS  = 16;
-    private static final int SLOT_CLOSE  = 49;
+    private final Map<UUID, String> awaitingInput = new HashMap<>();
 
     public AdminGUI(BellMarket plugin) {
         this.plugin = plugin;
         Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
-    // ─── chat input (for AdminChatListener) ──────────────────────────────
+    // ── Chat-input API (used by AdminChatListener) ─────────────────────────
+
+    public void promptInput(Player player, String context) {
+        awaitingInput.put(player.getUniqueId(), context);
+    }
 
     public boolean isAwaitingInput(Player player) {
         return awaitingInput.containsKey(player.getUniqueId());
     }
 
-    public void handleChatInput(Player player, String input) {
+    public boolean handleChatInput(Player player, String message) {
         String context = awaitingInput.remove(player.getUniqueId());
-        if (context == null) return;
-        // Future: handle rename, etc.
-        openFor(player);
+        if (context == null) return false;
+
+        if (message.equalsIgnoreCase("cancel")) {
+            player.sendMessage(c("&8[&6BellMarket&8] &7Input cancelled."));
+            Bukkit.getScheduler().runTask(plugin, () -> openFor(player));
+            return true;
+        }
+        player.sendMessage(c("&8[&6BellMarket&8] &7Received: &f" + message));
+        Bukkit.getScheduler().runTask(plugin, () -> openFor(player));
+        return true;
     }
 
-    // ─── open ────────────────────────────────────────────────────────────
+    // ── Main admin panel ───────────────────────────────────────────────────
 
     public void openFor(Player player) {
-        LangManager lang = plugin.getLang();
-        Inventory inv = Bukkit.createInventory(new AdminHolder(), 54,
-                LangManager.colorize(lang.getRaw("admin.gui-title")));
+        AdminHolder holder = new AdminHolder("main");
+        Inventory inv = Bukkit.createInventory(holder, 54,
+            plugin.buildTitle("&8\u2699 &6BellMarket Admin"));
+        holder.setInventory(inv);
 
-        fillBorder(inv);
+        fillBackground(inv);
 
-        // Reload
-        inv.setItem(SLOT_RELOAD, makeItem(Material.LIME_DYE,
-                lang.getRaw("admin.gui-reload-name"),
-                lang.getList("admin.gui-reload-lore")));
+        inv.setItem(10, makeItem(Material.SUNFLOWER, "&e&l\u27f3 Reload",
+            "&7Reload all categories, providers",
+            "&7and config without server restart.",
+            "", "&eClick to reload"));
 
-        // Price Editor ← NEW
-        inv.setItem(SLOT_PRICES, makeItem(Material.GOLD_INGOT,
-                lang.getRaw("admin.gui-prices-name"),
-                lang.getList("admin.gui-prices-lore")));
+        inv.setItem(12, makeItem(Material.GOLD_NUGGET, "&a&lEdit Prices",
+            "&7Open the price editor for all",
+            "&7categories and products.",
+            "&7Loaded: &f" + plugin.getCategories().getCategories().size() + " categories",
+            "", "&eClick to open price editor"));
 
-        // Language toggle
-        String currentLang = plugin.getConfig().getString("language", "en").toUpperCase();
-        inv.setItem(SLOT_LANG, makeItem(Material.BOOK,
-                lang.getRaw("admin.gui-lang-name"),
-                List.of(LangManager.colorize("&7" + lang.getRaw("admin.gui-lang-current") + " &f" + currentLang),
-                        LangManager.colorize(""),
-                        LangManager.colorize("&eLeft-click &7→ EN"),
-                        LangManager.colorize("&eRight-click &7→ PL"))));
+        inv.setItem(14, makeItem(Material.WRITABLE_BOOK, "&b&lLanguage",
+            "&7Current: &f" + plugin.getConfig().getString("language", "en").toUpperCase(),
+            "",
+            "&eLeft-click: &fSwitch to EN",
+            "&eRight-click: &fSwitch to PL"));
 
-        // Stats
-        inv.setItem(SLOT_STATS, makeItem(Material.PAPER,
-                lang.getRaw("admin.gui-stats-name"),
-                lang.getList("admin.gui-stats-lore")));
+        inv.setItem(16, makeItem(Material.GOLD_INGOT, "&6&lEconomy",
+            "&7Currency: &f" + plugin.getLang().getCurrencyName(),
+            "&7Symbol: &f" + plugin.getLang().getCurrencySymbol()));
 
-        // Close
-        inv.setItem(SLOT_CLOSE, makeItem(Material.BARRIER,
-                lang.getRaw("gui.close-button"), List.of()));
+        List<Category> cats = plugin.getCategories().getCategories();
+        for (int i = 0; i < Math.min(cats.size(), 18); i++) {
+            Category cat = cats.get(i);
+            List<String> lore = new ArrayList<>();
+            lore.add("&7ID: &8" + cat.getId());
+            lore.add("&7Products: &f" + cat.getProducts().size()
+                + " &8(" + cat.getEnabledProducts().size() + " enabled)");
+            lore.add("&7Order: &f" + cat.getOrder());
+            lore.add("");
+            lore.add("&eClick &7to open this category in shop");
+            inv.setItem(FIRST_CAT_SLOT + i, makeItem(
+                cat.getIconMaterial() != null ? cat.getIconMaterial() : Material.PAPER,
+                cat.getName(), lore.toArray(new String[0])));
+        }
 
+        inv.setItem(49, makeItem(Material.BARRIER, "&c&lClose"));
         player.openInventory(inv);
     }
 
-    // ─── click ───────────────────────────────────────────────────────────
-
-    @EventHandler
-    public void onClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof AdminHolder)) return;
-        event.setCancelled(true);
-        if (!(event.getWhoClicked() instanceof Player player)) return;
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onClick(InventoryClickEvent e) {
+        if (!(e.getInventory().getHolder() instanceof AdminHolder)) return;
+        e.setCancelled(true);
+        if (!(e.getWhoClicked() instanceof Player player)) return;
         if (!player.hasPermission("bellmarket.admin")) return;
 
-        int slot = event.getRawSlot();
+        int slot = e.getRawSlot();
 
         switch (slot) {
-            case SLOT_RELOAD -> {
+            case 10 -> {
                 player.closeInventory();
                 plugin.reload();
-                player.sendMessage(plugin.getLang().component("admin.reloaded"));
+                player.sendMessage(c("&8[&6BellMarket&8] &aReloaded! "
+                    + plugin.getCategories().getCategories().size() + " categories loaded."));
+                player.playSound(player, Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
+                return;
             }
-            case SLOT_PRICES -> {
-                player.closeInventory();
-                plugin.getPriceEditor().open(player, true); // fromAdmin=true → back button returns here
-            }
-            case SLOT_LANG -> {
-                String newLang = event.isLeftClick() ? "en" : "pl";
-                plugin.getConfig().set("language", newLang);
+            case 14 -> {
+                String lang = e.getClick().isLeftClick() ? "en" : "pl";
+                plugin.getConfig().set("language", lang);
                 plugin.saveConfig();
-                plugin.reload(); // reloads LangManager → all GUI texts update
-                // Reopen admin panel in new language
+                plugin.getLang().reload();
+                player.playSound(player, Sound.UI_BUTTON_CLICK, 1f, 1f);
+                player.sendMessage(c("&8[&6BellMarket&8] &aLanguage: &f" + lang.toUpperCase()));
                 openFor(player);
-                player.sendMessage(plugin.getLang().component("admin.language-switched",
-                        "lang", newLang.toUpperCase()));
+                return;
             }
-            case SLOT_STATS -> {
-                player.sendMessage(LangManager.colorize("&8[&6BellMarket&8] &7Stats coming soon."));
+            case 12 -> {
+                // Open the full price editor (all categories)
+                player.closeInventory();
+                player.playSound(player, Sound.UI_BUTTON_CLICK, 1f, 1f);
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    var bmCmd = plugin.getBellMarketCommand();
+                    if (bmCmd != null && bmCmd.getPriceEditor() != null) {
+                        bmCmd.getPriceEditor().openTierList(player);
+                    }
+                });
+                return;
             }
-            case SLOT_CLOSE -> player.closeInventory();
+            case 49 -> {
+                player.closeInventory();
+                return;
+            }
+        }
+
+        if (slot >= FIRST_CAT_SLOT && slot < FIRST_CAT_SLOT + 18) {
+            int index = slot - FIRST_CAT_SLOT;
+            List<Category> cats = plugin.getCategories().getCategories();
+            if (index >= cats.size()) return;
+            Category cat = cats.get(index);
+            player.closeInventory();
+            player.playSound(player, Sound.UI_BUTTON_CLICK, 1f, 1f);
+            // The skin price editor only applies to SkinStudio tiers.
+            // For other categories, direct the admin to the price editor button / YAML.
+            String id = cat.getId();
+            boolean isSkinCategory = id.startsWith("skinstudio") || id.equals("00_tokens")
+                || id.toLowerCase().contains("skin");
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                var bmCmd = plugin.getBellMarketCommand();
+                if (bmCmd != null && bmCmd.getPriceEditor() != null && isSkinCategory) {
+                    bmCmd.getPriceEditor().openTierList(player);
+                } else {
+                    player.sendMessage(c("&8[&6BellMarket&8] &7Price editing is available for"));
+                    player.sendMessage(c("&7SkinStudio categories via the &eEdit Prices&7 button."));
+                    player.sendMessage(c("&7Other categories: edit &fcategories/" + id + ".yml&7 + &f/bm reload"));
+                    // Reopen admin so they aren't stuck
+                    bmCmd.getAdminGUI().openFor(player);
+                }
+            });
         }
     }
 
-    // ─── helpers ─────────────────────────────────────────────────────────
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onDrag(InventoryDragEvent e) {
+        if (e.getInventory().getHolder() instanceof AdminHolder) e.setCancelled(true);
+    }
 
-    private ItemStack makeItem(Material mat, String name, List<String> lore) {
+    private ItemStack makeItem(Material mat, String name, String... lore) {
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
-        meta.displayName(LegacyComponentSerializer.legacyAmpersand().deserialize(name));
-        List<net.kyori.adventure.text.Component> comps = new ArrayList<>();
-        for (String line : lore) {
-            comps.add(LegacyComponentSerializer.legacyAmpersand().deserialize(line));
+        meta.displayName(c(name).decoration(TextDecoration.ITALIC, false));
+        if (lore.length > 0) {
+            meta.lore(List.of(lore).stream()
+                .map(l -> c(l.startsWith("&") ? l : "&7" + l)
+                    .decoration(TextDecoration.ITALIC, false))
+                .toList());
         }
-        meta.lore(comps);
         item.setItemMeta(meta);
         return item;
     }
 
-    private void fillBorder(Inventory inv) {
-        ItemStack filler = makeItem(Material.GRAY_STAINED_GLASS_PANE, " ", List.of());
-        for (int i = 0; i < 9; i++)  inv.setItem(i, filler);
-        for (int i = 45; i < 54; i++) inv.setItem(i, filler);
-        for (int row = 1; row < 5; row++) {
-            inv.setItem(row * 9, filler);
-            inv.setItem(row * 9 + 8, filler);
-        }
+    private void fillBackground(Inventory inv) {
+        ItemStack glass = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        ItemMeta m = glass.getItemMeta();
+        if (m != null) { m.displayName(Component.empty()); glass.setItemMeta(m); }
+        for (int i = 0; i < 54; i++) inv.setItem(i, glass);
     }
 
-    public static class AdminHolder implements InventoryHolder {
-        @Override public Inventory getInventory() { return null; }
+    private Component c(String s) {
+        return LegacyComponentSerializer.legacyAmpersand().deserialize(s);
     }
 }

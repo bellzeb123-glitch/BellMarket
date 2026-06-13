@@ -24,12 +24,9 @@ shop:
   category-rows: 5
   # Rows in main menu (3 = 27 slots, 4 = 36 slots)
   main-rows: 3
-  # URL for buying premium currency (shown as clickable link in chat)
-  premium-url: "https://your-store.tebex.io"
-  # Button text for buying currency
-  premium-button-text: "&eClick here to buy {currency}!"
-
-# Database settings
+  # Featured category shown in the top bar (slot 7, left of BellCoins buy button).
+  # Defaults to the VIP category (bought with VIP Tokens).
+  featured-category-id: "09_vip"
 database:
   # Storage type: yaml or sqlite
   type: yaml

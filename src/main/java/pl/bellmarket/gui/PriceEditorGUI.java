@@ -1,13 +1,15 @@
 package pl.bellmarket.gui;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -16,408 +18,369 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import pl.bellmarket.BellMarket;
-import pl.bellmarket.config.LangManager;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
 
 /**
- * PriceEditorGUI — edytor cen skinów SkinStudio.
+ * In-game price editor for SkinStudio skins.
  *
- * Dostęp:
- *   /bm prices         → open(player, false)
- *   AdminGUI → Prices  → open(player, true) — przycisk ← Wróć wraca do AdminGUI
+ * Rewritten for i18n: all user-facing text comes from the language files
+ * under the "price-editor" section, so /bm lang switches it too.
  *
- * Flow: Tier list → Skin list → klik = set price (chat input), shift-click = reset.
+ * Adds a "Back to Admin" button so the editor returns to /bm admin
+ * instead of leaving the player in a dead-end GUI.
  */
 public class PriceEditorGUI implements Listener {
 
+    // ── Inner data records ────────────────────────────────────────────────
+    public record Holder(String view, String tier, int page) implements InventoryHolder {
+        @Override public Inventory getInventory() { return null; }
+    }
+    public record TierMeta(String displayName, String color, Material icon, long defaultPrice) {}
+    public record SkinEntry(String key, String tier, long currentPrice, boolean isOverridden,
+                            Material material, String displayName, String itemModel) {}
+    public record PendingInput(String skinKey, String tier, int page) {}
+
+    private static final int SIZE_TIERS = 54;
+    private static final int SIZE_SKINS = 54;
+    private static final int SLOT_BACK = 49;
+    private static final int SLOT_PREV = 45;
+    private static final int SLOT_NEXT = 53;
+    private static final int SLOT_INFO = 4;
+
     private final BellMarket plugin;
-
-    /** Players awaiting chat price input. */
-    private final Map<UUID, PendingInput> awaiting = new ConcurrentHashMap<>();
-
-    /** Players who entered from AdminGUI. */
-    private final Set<UUID> fromAdmin = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, PendingInput> pendingInput = new HashMap<>();
 
     public PriceEditorGUI(BellMarket plugin) {
         this.plugin = plugin;
-        Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
-    /** Check if player is awaiting price input (for AdminChatListener). */
-    public boolean isAwaitingInput(Player player) {
-        return awaiting.containsKey(player.getUniqueId());
+    // ── Lang helpers ──────────────────────────────────────────────────────
+    private String L(String key, String... args) {
+        return plugin.getLang().getRaw("price-editor." + key, args);
+    }
+    private Component LC(String key, String... args) {
+        return colorize(L(key, args));
     }
 
-    /** Handle chat input for price editing. */
-    public void handleChatInput(Player player, String input) {
-        PendingInput pending = awaiting.remove(player.getUniqueId());
-        if (pending == null) return;
-
-        LangManager lang = plugin.getLang();
-
-        if (input.equalsIgnoreCase("cancel") || input.equalsIgnoreCase("anuluj")) {
-            player.sendMessage(lang.component("admin.prices-cancelled"));
-            Bukkit.getScheduler().runTask(plugin, () -> openSkinList(player, pending.tier, pending.page));
-            return;
-        }
-
-        long newPrice;
-        try {
-            newPrice = Long.parseLong(input);
-            if (newPrice < 0) throw new NumberFormatException();
-        } catch (NumberFormatException e) {
-            player.sendMessage(lang.component("invalid-amount"));
-            return;
-        }
-
-        // Save to providers/skinstudio.yml
-        saveSkinPrice(pending.skinId, newPrice);
-        plugin.reload();
-
-        player.sendMessage(lang.component("admin.prices-saved",
-                "product", pending.skinId,
-                "price", String.valueOf(newPrice)));
-
-        Bukkit.getScheduler().runTask(plugin, () -> openSkinList(player, pending.tier, pending.page));
-    }
-
-    // ─── open ────────────────────────────────────────────────────────────
-
-    public void open(Player player, boolean fromAdminPanel) {
-        if (fromAdminPanel) fromAdmin.add(player.getUniqueId());
-        else fromAdmin.remove(player.getUniqueId());
-        openTierList(player);
-    }
-
-    /**
-     * Scans SkinStudio config for tiers and shows them as clickable icons.
-     */
+    // ── Tier list view ────────────────────────────────────────────────────
     public void openTierList(Player player) {
-        LangManager lang = plugin.getLang();
         Map<String, TierMeta> tiers = scanTiers();
-
         if (tiers.isEmpty()) {
-            player.sendMessage(LangManager.colorize("&cNo SkinStudio tiers detected."));
+            player.sendMessage(LC("no-tiers"));
             return;
         }
 
-        Inventory inv = Bukkit.createInventory(new Holder(null, 0),
-                54, LangManager.colorize(lang.getRaw("admin.prices-title")));
+        Inventory inv = Bukkit.createInventory(
+            new Holder("tiers", null, 0), SIZE_TIERS,
+            plugin.buildTitle(L("title-tiers")));
 
-        fillBackground(inv);
-
-        int slot = 10;
-        for (Map.Entry<String, TierMeta> entry : tiers.entrySet()) {
-            if (slot >= 44) break;
-            inv.setItem(slot, makeTierIcon(entry.getKey(), entry.getValue()));
-            slot++;
-            if ((slot % 9) == 8) slot += 2;
+        int slot = 9;
+        for (Map.Entry<String, TierMeta> e : tiers.entrySet()) {
+            if (slot >= SIZE_TIERS - 9) break;
+            inv.setItem(slot++, makeTierIcon(e.getKey(), e.getValue()));
         }
 
-        // Back / Close
-        if (fromAdmin.contains(player.getUniqueId())) {
-            inv.setItem(45, makePane(Material.ARROW, lang.getRaw("gui.back-button"),
-                    List.of(LangManager.colorize("&7" + lang.getRaw("admin.prices-back-to-admin")))));
-        }
-        inv.setItem(49, makePane(Material.BARRIER, lang.getRaw("gui.close-button"), List.of()));
-
+        // Back to admin panel
+        inv.setItem(SLOT_BACK, makeButton(Material.ARROW, L("back-to-admin")));
         player.openInventory(inv);
     }
 
-    /**
-     * Shows all skins of a tier with current prices. Click to edit, shift-click to reset.
-     */
+    // ── Skin list view ────────────────────────────────────────────────────
     public void openSkinList(Player player, String tier, int page) {
-        LangManager lang = plugin.getLang();
         List<SkinEntry> skins = scanSkinsOfTier(tier);
-        skins.sort(Comparator.comparing(s -> s.skinId));
+        if (skins.isEmpty()) {
+            player.sendMessage(LC("no-skins", "tier", tier));
+            return;
+        }
 
-        int totalPages = Math.max(1, (int) Math.ceil(skins.size() / 28.0));
-        page = Math.max(0, Math.min(page, totalPages - 1));
+        TierMeta meta = scanTiers().get(tier);
+        Inventory inv = Bukkit.createInventory(
+            new Holder("skins", tier, page), SIZE_SKINS,
+            plugin.buildTitle(L("title-skins", "tier", meta != null ? meta.displayName() : tier)));
 
-        TierMeta tierMeta = scanTiers().getOrDefault(tier, new TierMeta("&7", tier, Material.LIGHT_GRAY_STAINED_GLASS_PANE));
-
-        String title = lang.getRaw("admin.prices-category-title",
-                "category", tierMeta.color + capitalize(tier));
-
-        Inventory inv = Bukkit.createInventory(new Holder(tier, page),
-                54, LangManager.colorize(title));
-
-        fillBackground(inv);
-
-        int start = page * 28;
-        int end = Math.min(start + 28, skins.size());
-        int slot = 10;
-        for (int i = start; i < end; i++) {
-            inv.setItem(slot, makeSkinIcon(skins.get(i), tierMeta));
-            slot++;
-            if ((slot % 9) == 8) slot += 2;
+        int perPage = 36;
+        int start = page * perPage;
+        int slot = 9;
+        for (int i = start; i < Math.min(start + perPage, skins.size()); i++) {
+            inv.setItem(slot++, makeSkinIcon(skins.get(i), meta));
         }
 
         // Navigation
-        if (page > 0) inv.setItem(48, makePane(Material.ARROW, "&aPrevious page", List.of()));
-        if (page < totalPages - 1) inv.setItem(50, makePane(Material.ARROW, "&aNext page", List.of()));
-
-        // Back to tiers
-        inv.setItem(45, makePane(Material.BARRIER, "&cBack to tiers", List.of()));
-        inv.setItem(49, makePane(Material.PAPER,
-                lang.getRaw("gui.page-info", "current", String.valueOf(page + 1), "total", String.valueOf(totalPages)),
-                List.of()));
+        inv.setItem(SLOT_BACK, makeButton(Material.ARROW, L("back-to-tiers")));
+        if (page > 0)
+            inv.setItem(SLOT_PREV, makeButton(Material.SPECTRAL_ARROW, L("prev-page")));
+        if (start + perPage < skins.size())
+            inv.setItem(SLOT_NEXT, makeButton(Material.SPECTRAL_ARROW, L("next-page")));
+        inv.setItem(SLOT_INFO, makeButton(Material.PAPER,
+            L("skins-count", "count", String.valueOf(skins.size()))));
 
         player.openInventory(inv);
     }
 
-    // ─── click ───────────────────────────────────────────────────────────
+    // ── Click handling ────────────────────────────────────────────────────
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onClick(InventoryClickEvent e) {
+        if (!(e.getInventory().getHolder() instanceof Holder holder)) return;
+        e.setCancelled(true);
+        if (!(e.getWhoClicked() instanceof Player player)) return;
 
-    @EventHandler
-    public void onClick(InventoryClickEvent event) {
-        if (!(event.getInventory().getHolder() instanceof Holder holder)) return;
-        event.setCancelled(true);
-        if (!(event.getWhoClicked() instanceof Player player)) return;
-        if (!player.hasPermission("bellmarket.admin")) return;
+        int slot = e.getSlot();
+        ItemStack clicked = e.getCurrentItem();
+        if (clicked == null || clicked.getType() == Material.AIR) return;
 
-        ItemStack clicked = event.getCurrentItem();
-        if (clicked == null || clicked.getType().isAir()) return;
-
-        int slot = event.getSlot();
-
-        // Tier list view (holder.tier == null)
-        if (holder.tier == null) {
-            // Back to admin
-            if (slot == 45 && fromAdmin.contains(player.getUniqueId())) {
-                fromAdmin.remove(player.getUniqueId());
-                player.closeInventory();
-                plugin.getAdminGUI().openFor(player);
+        if (holder.view().equals("tiers")) {
+            if (slot == SLOT_BACK) {
+                // Back to the admin panel
+                var bmCmd = plugin.getBellMarketCommand();
+                if (bmCmd != null) {
+                    Bukkit.getScheduler().runTask(plugin, () -> bmCmd.getAdminGUI().openFor(player));
+                }
                 return;
             }
-            // Close
-            if (slot == 49) {
-                fromAdmin.remove(player.getUniqueId());
-                player.closeInventory();
-                return;
+            // Click a tier → open its skins
+            String tierKey = tierKeyFromIcon(clicked);
+            if (tierKey != null) {
+                openSkinList(player, tierKey, 0);
             }
 
-            // Click tier icon → extract tag
-            String tag = extractTag(clicked, "tier:");
-            if (tag != null) {
-                openSkinList(player, tag, 0);
-            }
-            return;
+        } else if (holder.view().equals("skins")) {
+            if (slot == SLOT_BACK) { openTierList(player); return; }
+            if (slot == SLOT_PREV) { openSkinList(player, holder.tier(), holder.page() - 1); return; }
+            if (slot == SLOT_NEXT) { openSkinList(player, holder.tier(), holder.page() + 1); return; }
+            handleSkinClick(player, holder, slot, e.getClick(), clicked);
         }
-
-        // Skin list view
-        if (slot == 45) { openTierList(player); return; }
-        if (slot == 48) { openSkinList(player, holder.tier, holder.page - 1); return; }
-        if (slot == 50) { openSkinList(player, holder.tier, holder.page + 1); return; }
-
-        handleSkinClick(player, holder, slot, event.getClick(), clicked);
     }
 
-    private void handleSkinClick(Player player, Holder holder, int slot, ClickType click, ItemStack clicked) {
-        LangManager lang = plugin.getLang();
-        String skinId = extractTag(clicked, "skin:");
-        if (skinId == null) return;
+    private void handleSkinClick(Player player, Holder holder, int slot, ClickType click, ItemStack item) {
+        String skinKey = skinKeyFromIcon(item);
+        if (skinKey == null) return;
 
         if (click.isShiftClick()) {
-            // Reset to default
-            removeOverride(skinId);
-            plugin.reload();
-            openSkinList(player, holder.tier, holder.page);
+            // Shift-click resets to tier default
+            saveSkinPrice(holder.tier(), skinKey, -1);
+            player.sendMessage(LC("price-reset", "skin", skinKey));
+            openSkinList(player, holder.tier(), holder.page());
             return;
         }
 
-        // Start price input via chat
+        // Left-click: prompt for new price via chat
+        pendingInput.put(player.getUniqueId(),
+            new PendingInput(skinKey, holder.tier(), holder.page()));
         player.closeInventory();
-        TierMeta tierMeta = scanTiers().getOrDefault(holder.tier, new TierMeta("&7", holder.tier, Material.PAPER));
-        long currentPrice = getCurrentPrice(skinId, tierMeta.defaultPrice);
-
-        awaiting.put(player.getUniqueId(), new PendingInput(skinId, holder.tier, holder.page));
-        player.sendMessage(lang.component("admin.prices-enter",
-                "product", skinId, "current", String.valueOf(currentPrice)));
-        player.sendMessage(lang.component("admin.prices-cancel-hint"));
+        player.sendMessage(LC("setting-price", "skin", skinKey));
+        player.sendMessage(LC("type-price"));
     }
 
-    // ─── scanning SkinStudio ─────────────────────────────────────────────
+    /** Called by AdminChatListener when a player with pending input types a value. */
+    public boolean isAwaitingInput(Player player) {
+        return pendingInput.containsKey(player.getUniqueId());
+    }
 
-    private Map<String, TierMeta> scanTiers() {
-        var ss = Bukkit.getPluginManager().getPlugin("SkinStudio");
-        if (ss == null || !ss.isEnabled()) return Map.of();
+    public boolean handleChatInput(Player player, String message) {
+        PendingInput input = pendingInput.remove(player.getUniqueId());
+        if (input == null) return false;
 
-        File configFile = new File(ss.getDataFolder(), "config.yml");
-        if (!configFile.exists()) return Map.of();
-
-        FileConfiguration ssCfg = YamlConfiguration.loadConfiguration(configFile);
-        ConfigurationSection skins = ssCfg.getConfigurationSection("skins");
-        if (skins == null) return Map.of();
-
-        Map<String, TierMeta> tiers = new LinkedHashMap<>();
-        FileConfiguration provCfg = loadProviderConfig();
-
-        for (String skinName : skins.getKeys(false)) {
-            String tier = skinName.contains("_") ? skinName.substring(0, skinName.indexOf('_')) : "misc";
-            if (tiers.containsKey(tier)) continue;
-
-            String color = "&7";
-            String displayName = capitalize(tier);
-            Material icon = Material.LIGHT_GRAY_STAINED_GLASS_PANE;
-            long defPrice = provCfg.getLong("default-price", 500);
-
-            if (provCfg.isConfigurationSection("tiers." + tier)) {
-                ConfigurationSection tc = provCfg.getConfigurationSection("tiers." + tier);
-                color = tc.getString("color", color);
-                displayName = tc.getString("display-name", displayName);
-                icon = parseMat(tc.getString("icon"), icon);
-                defPrice = tc.getLong("default-price", defPrice);
-            }
-
-            tiers.put(tier, new TierMeta(color, displayName, icon, defPrice));
+        if (message.equalsIgnoreCase("cancel")) {
+            player.sendMessage(LC("cancelled"));
+            Bukkit.getScheduler().runTask(plugin,
+                () -> openSkinList(player, input.tier(), input.page()));
+            return true;
         }
 
+        long price;
+        try {
+            price = Long.parseLong(message.trim());
+            if (price < 0) throw new NumberFormatException();
+        } catch (NumberFormatException ex) {
+            player.sendMessage(LC("invalid-price"));
+            Bukkit.getScheduler().runTask(plugin,
+                () -> openSkinList(player, input.tier(), input.page()));
+            return true;
+        }
+
+        saveSkinPrice(input.tier(), input.skinKey(), price);
+        player.sendMessage(LC("price-set",
+            "skin", input.skinKey(),
+            "price", String.valueOf(price),
+            "currency", plugin.getLang().getCurrencyName()));
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            plugin.reload();
+            openSkinList(player, input.tier(), input.page());
+        });
+        return true;
+    }
+
+    // ── SkinStudio scanning ───────────────────────────────────────────────
+    private Map<String, TierMeta> scanTiers() {
+        Map<String, TierMeta> tiers = new LinkedHashMap<>();
+        var ss = Bukkit.getServer().getPluginManager().getPlugin("SkinStudio");
+        if (ss == null) return tiers;
+
+        File cfgFile = new File(plugin.getDataFolder(), "providers/skinstudio.yml");
+        if (!cfgFile.exists()) return tiers;
+        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(cfgFile);
+
+        long globalDefault = cfg.getLong("default-price", 500);
+        ConfigurationSection skins = cfg.getConfigurationSection("skins");
+        if (skins == null) {
+            // Tiers might come from SkinStudio's own config; scan loadSkinStudioSkins
+            for (SkinEntry s : loadSkinStudioSkins()) {
+                tiers.computeIfAbsent(s.tier(), t -> new TierMeta(
+                    detectTierDisplayName(t), detectTierColor(t),
+                    Material.LIGHT_BLUE_STAINED_GLASS, globalDefault));
+            }
+            return tiers;
+        }
+
+        for (String key : skins.getKeys(false)) {
+            String tier = tierOf(key);
+            tiers.computeIfAbsent(tier, t -> new TierMeta(
+                detectTierDisplayName(t), detectTierColor(t),
+                Material.LIGHT_BLUE_STAINED_GLASS, globalDefault));
+        }
         return tiers;
     }
 
     private List<SkinEntry> scanSkinsOfTier(String tier) {
-        var ss = Bukkit.getPluginManager().getPlugin("SkinStudio");
-        if (ss == null) return List.of();
-
-        File configFile = new File(ss.getDataFolder(), "config.yml");
-        if (!configFile.exists()) return List.of();
-
-        FileConfiguration ssCfg = YamlConfiguration.loadConfiguration(configFile);
-        ConfigurationSection skins = ssCfg.getConfigurationSection("skins");
-        if (skins == null) return List.of();
-
-        FileConfiguration provCfg = loadProviderConfig();
-        long defaultPrice = provCfg.getLong("default-price", 500);
-        if (provCfg.isConfigurationSection("tiers." + tier)) {
-            defaultPrice = provCfg.getLong("tiers." + tier + ".default-price", defaultPrice);
+        List<SkinEntry> out = new ArrayList<>();
+        for (SkinEntry s : loadSkinStudioSkins()) {
+            if (s.tier().equals(tier)) out.add(s);
         }
+        return out;
+    }
 
-        List<SkinEntry> entries = new ArrayList<>();
-        for (String skinName : skins.getKeys(false)) {
-            String skinTier = skinName.contains("_") ? skinName.substring(0, skinName.indexOf('_')) : "misc";
-            if (!skinTier.equals(tier)) continue;
+    private List<SkinEntry> loadSkinStudioSkins() {
+        List<SkinEntry> out = new ArrayList<>();
+        File cfgFile = new File(plugin.getDataFolder(), "providers/skinstudio.yml");
+        if (!cfgFile.exists()) return out;
+        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(cfgFile);
+        long globalDefault = cfg.getLong("default-price", 500);
+        ConfigurationSection prices = cfg.getConfigurationSection("skin-prices");
 
-            long price = provCfg.getLong("skin-prices." + skinName, defaultPrice);
-            entries.add(new SkinEntry(skinName, price));
+        ConfigurationSection skins = cfg.getConfigurationSection("skins");
+        if (skins != null) {
+            for (String key : skins.getKeys(false)) {
+                long price = prices != null && prices.contains(key)
+                    ? prices.getLong(key) : globalDefault;
+                boolean overridden = prices != null && prices.contains(key);
+                out.add(new SkinEntry(key, tierOf(key), price, overridden,
+                    Material.PAPER, key, null));
+            }
         }
-        return entries;
+        return out;
     }
 
-    private long getCurrentPrice(String skinId, long fallback) {
-        FileConfiguration cfg = loadProviderConfig();
-        return cfg.getLong("skin-prices." + skinId, fallback);
+    private void saveSkinPrice(String tier, String skinKey, long price) {
+        File cfgFile = new File(plugin.getDataFolder(), "providers/skinstudio.yml");
+        if (!cfgFile.exists()) return;
+        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(cfgFile);
+        if (price < 0) {
+            cfg.set("skin-prices." + skinKey, null);  // reset to default
+        } else {
+            cfg.set("skin-prices." + skinKey, price);
+        }
+        try {
+            cfg.save(cfgFile);
+            plugin.getLogger().info("[PriceEditor] Saved price for " + skinKey + ": "
+                + (price < 0 ? "default" : price));
+        } catch (Exception e) {
+            plugin.getLogger().warning("[PriceEditor] Save failed: " + e.getMessage());
+        }
     }
 
-    private FileConfiguration loadProviderConfig() {
-        File f = new File(plugin.getDataFolder(), "providers/skinstudio.yml");
-        if (!f.exists()) return new YamlConfiguration();
-        return YamlConfiguration.loadConfiguration(f);
-    }
-
-    private void saveSkinPrice(String skinId, long price) {
-        File f = new File(plugin.getDataFolder(), "providers/skinstudio.yml");
-        FileConfiguration cfg = f.exists() ? YamlConfiguration.loadConfiguration(f) : new YamlConfiguration();
-        cfg.set("skin-prices." + skinId, price);
-        try { cfg.save(f); }
-        catch (IOException e) { plugin.getLogger().log(Level.WARNING, "Could not save skinstudio.yml", e); }
-    }
-
-    private void removeOverride(String skinId) {
-        File f = new File(plugin.getDataFolder(), "providers/skinstudio.yml");
-        if (!f.exists()) return;
-        FileConfiguration cfg = YamlConfiguration.loadConfiguration(f);
-        cfg.set("skin-prices." + skinId, null);
-        try { cfg.save(f); }
-        catch (IOException e) { plugin.getLogger().log(Level.WARNING, "Could not save skinstudio.yml", e); }
-    }
-
-    // ─── item builders ───────────────────────────────────────────────────
-
+    // ── Icon builders ─────────────────────────────────────────────────────
     private ItemStack makeTierIcon(String tier, TierMeta meta) {
-        return makePane(meta.icon, meta.color + meta.displayName,
-                List.of(LangManager.colorize("&7Tier: " + meta.color + meta.displayName),
-                        LangManager.colorize(""),
-                        LangManager.colorize("&eClick &7to edit prices"),
-                        LangManager.colorize("&8tier:" + tier)));
-    }
-
-    private ItemStack makeSkinIcon(SkinEntry skin, TierMeta tierMeta) {
-        LangManager lang = plugin.getLang();
-        return makePane(Material.PAPER, tierMeta.color + capitalize(skin.skinId),
-                List.of(LangManager.colorize("&7" + lang.getRaw("admin.prices-current-price",
-                                "price", String.valueOf(skin.price),
-                                "currency", lang.getCurrencyName())),
-                        LangManager.colorize(""),
-                        LangManager.colorize("&eLeft-click: &fset price"),
-                        LangManager.colorize("&eShift-click: &freset"),
-                        LangManager.colorize("&8skin:" + skin.skinId)));
-    }
-
-    private ItemStack makePane(Material mat, String name, List<String> lore) {
-        ItemStack item = new ItemStack(mat);
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null) return item;
-        meta.displayName(LegacyComponentSerializer.legacyAmpersand().deserialize(name));
-        List<net.kyori.adventure.text.Component> comps = new ArrayList<>();
-        for (String line : lore) comps.add(LegacyComponentSerializer.legacyAmpersand().deserialize(line));
-        meta.lore(comps);
-        item.setItemMeta(meta);
+        ItemStack item = new ItemStack(meta.icon());
+        ItemMeta im = item.getItemMeta();
+        if (im == null) return item;
+        im.displayName(colorize(meta.color() + meta.displayName())
+            .decoration(TextDecoration.ITALIC, false));
+        List<Component> lore = new ArrayList<>();
+        for (String line : plugin.getLang().getList("price-editor.tier-lore",
+                "count", String.valueOf(countInTier(tier)),
+                "price", String.valueOf(meta.defaultPrice()),
+                "currency", plugin.getLang().getCurrencyName())) {
+            lore.add(colorize(line).decoration(TextDecoration.ITALIC, false));
+        }
+        // Hidden marker for click detection
+        lore.add(colorize("&8tier:" + tier).decoration(TextDecoration.ITALIC, false));
+        im.lore(lore);
+        item.setItemMeta(im);
         return item;
     }
 
-    private void fillBackground(Inventory inv) {
-        ItemStack filler = makePane(Material.GRAY_STAINED_GLASS_PANE, " ", List.of());
-        for (int i = 0; i < 9; i++)  inv.setItem(i, filler);
-        for (int i = 45; i < 54; i++) inv.setItem(i, filler);
-        for (int row = 1; row < 5; row++) {
-            inv.setItem(row * 9, filler);
-            inv.setItem(row * 9 + 8, filler);
+    private ItemStack makeSkinIcon(SkinEntry skin, TierMeta meta) {
+        ItemStack item = new ItemStack(skin.material());
+        ItemMeta im = item.getItemMeta();
+        if (im == null) return item;
+        im.displayName(colorize("&f" + skin.displayName())
+            .decoration(TextDecoration.ITALIC, false));
+        List<Component> lore = new ArrayList<>();
+        lore.add(colorize(L("skin-price", "price", String.valueOf(skin.currentPrice()),
+            "currency", plugin.getLang().getCurrencyName()))
+            .decoration(TextDecoration.ITALIC, false));
+        if (!skin.isOverridden()) {
+            lore.add(colorize(L("tier-default")).decoration(TextDecoration.ITALIC, false));
         }
+        lore.add(Component.empty());
+        lore.add(colorize(L("click-set-price")).decoration(TextDecoration.ITALIC, false));
+        lore.add(colorize(L("shift-reset")).decoration(TextDecoration.ITALIC, false));
+        lore.add(colorize("&8skin:" + skin.key()).decoration(TextDecoration.ITALIC, false));
+        im.lore(lore);
+        item.setItemMeta(im);
+        return item;
     }
 
-    private String extractTag(ItemStack item, String prefix) {
-        if (item == null || item.getItemMeta() == null || item.getItemMeta().lore() == null) return null;
-        for (net.kyori.adventure.text.Component comp : item.getItemMeta().lore()) {
-            String plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
-                    .plainText().serialize(comp);
-            if (plain.startsWith(prefix)) return plain.substring(prefix.length());
+    private ItemStack makeButton(Material mat, String name) {
+        ItemStack item = new ItemStack(mat);
+        ItemMeta im = item.getItemMeta();
+        if (im == null) return item;
+        im.displayName(colorize(name).decoration(TextDecoration.ITALIC, false));
+        item.setItemMeta(im);
+        return item;
+    }
+
+    // ── Click-marker extraction ───────────────────────────────────────────
+    private String tierKeyFromIcon(ItemStack item) {
+        return extractMarker(item, "tier:");
+    }
+    private String skinKeyFromIcon(ItemStack item) {
+        return extractMarker(item, "skin:");
+    }
+    private String extractMarker(ItemStack item, String prefix) {
+        if (item == null || !item.hasItemMeta() || item.getItemMeta().lore() == null) return null;
+        for (Component line : item.getItemMeta().lore()) {
+            String plain = LegacyComponentSerializer.legacyAmpersand().serialize(line);
+            int idx = plain.indexOf(prefix);
+            if (idx >= 0) {
+                return plain.substring(idx + prefix.length()).trim();
+            }
         }
         return null;
     }
 
-    private Material parseMat(String name, Material fallback) {
-        if (name == null) return fallback;
-        try { return Material.valueOf(name.toUpperCase(Locale.ROOT)); }
-        catch (IllegalArgumentException e) { return fallback; }
+    // ── Tier helpers ──────────────────────────────────────────────────────
+    private String tierOf(String skinKey) {
+        int idx = skinKey.indexOf('_');
+        return idx > 0 ? skinKey.substring(0, idx) : "default";
+    }
+    private long countInTier(String tier) {
+        return loadSkinStudioSkins().stream().filter(s -> s.tier().equals(tier)).count();
+    }
+    private String detectTierColor(String tier) {
+        return switch (tier.toLowerCase(Locale.ROOT)) {
+            case "common" -> "&7";  case "rare" -> "&9";  case "epic" -> "&5";
+            case "legendary" -> "&6";  case "mythic" -> "&c";  default -> "&b";
+        };
+    }
+    private String detectTierDisplayName(String tier) {
+        return tier.isEmpty() ? tier
+            : Character.toUpperCase(tier.charAt(0)) + tier.substring(1);
     }
 
-    private String capitalize(String s) {
-        if (s == null || s.isEmpty()) return s;
-        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    private Component colorize(String s) {
+        return LegacyComponentSerializer.legacyAmpersand().deserialize(s == null ? "" : s);
     }
-
-    // ─── inner classes ───────────────────────────────────────────────────
-
-    public static class Holder implements InventoryHolder {
-        final String tier; // null = tier list view
-        final int page;
-        public Holder(String tier, int page) { this.tier = tier; this.page = page; }
-        @Override public Inventory getInventory() { return null; }
-    }
-
-    record TierMeta(String color, String displayName, Material icon, long defaultPrice) {
-        TierMeta(String color, String displayName, Material icon) {
-            this(color, displayName, icon, 500);
-        }
-    }
-
-    record SkinEntry(String skinId, long price) {}
-
-    record PendingInput(String skinId, String tier, int page) {}
 }

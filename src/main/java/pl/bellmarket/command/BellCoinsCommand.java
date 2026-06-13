@@ -1,173 +1,107 @@
 package pl.bellmarket.command;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.command.*;
 import org.bukkit.entity.Player;
 import pl.bellmarket.BellMarket;
-import pl.bellmarket.config.LangManager;
-import pl.bellmarket.currency.CurrencyManager;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
 
-public class BellCoinsCommand implements CommandExecutor, TabCompleter {
-
+public class BellCoinsCommand implements CommandExecutor {
     private final BellMarket plugin;
-
     public BellCoinsCommand(BellMarket plugin) { this.plugin = plugin; }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        LangManager lang = plugin.getLang();
-        CurrencyManager cm = plugin.getCurrency();
-
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0) {
-            return cmdBalance(sender, args, lang, cm);
+            if (!(sender instanceof Player p)) { sender.sendMessage("Player only."); return true; }
+            long bal = plugin.getCurrency().getBalance(p);
+            p.sendMessage(c(plugin.getLang().getRaw("currency.balance",
+                "symbol", plugin.getLang().getCurrencySymbol(),
+                "amount", plugin.getLang().formatAmount(bal),
+                "currency", plugin.getLang().getCurrencyName())));
+            return true;
         }
-
-        switch (args[0].toLowerCase(Locale.ROOT)) {
-            case "balance", "bal"           -> { return cmdBalance(sender, args, lang, cm); }
-            case "give"                     -> { return cmdGive(sender, args, lang, cm); }
-            case "take", "remove"           -> { return cmdTake(sender, args, lang, cm); }
-            case "set"                      -> { return cmdSet(sender, args, lang, cm); }
-            case "top", "leaderboard"       -> { return cmdTop(sender, lang, cm); }
-            default -> { return cmdBalance(sender, args, lang, cm); }
-        }
+        String sub = args[0].toLowerCase(Locale.ROOT);
+        return switch (sub) {
+            case "balance" -> balance(sender, args);
+            case "give"    -> modify(sender, args, "give");
+            case "take"    -> modify(sender, args, "take");
+            case "set"     -> modifySet(sender, args);
+            case "top"     -> top(sender);
+            default        -> { sender.sendMessage(c("&cUsage: /bc <balance|give|take|set|top>")); yield true; }
+        };
     }
 
-    private boolean cmdBalance(CommandSender sender, String[] args, LangManager lang, CurrencyManager cm) {
-        // /bc balance <player> or /bc balance (self)
-        if (args.length >= 2) {
-            if (!sender.hasPermission("bellmarket.coins.balance.others")) {
-                sender.sendMessage(lang.component("no-permission"));
-                return true;
-            }
-            OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
-            if (!target.hasPlayedBefore() && !target.isOnline()) {
-                sender.sendMessage(lang.component("player-not-found", "player", args[1]));
-                return true;
-            }
-            long bal = cm.getBalance(target.getUniqueId());
-            sender.sendMessage(lang.component("currency.balance-other",
-                    "player", target.getName() != null ? target.getName() : args[1],
-                    "symbol", lang.getCurrencySymbol(),
-                    "amount", lang.formatAmount(bal),
-                    "currency", lang.getCurrencyName()));
+    private boolean balance(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            if (!(sender instanceof Player p)) { sender.sendMessage("Player only."); return true; }
+            long b = plugin.getCurrency().getBalance(p);
+            sender.sendMessage(c(plugin.getLang().getRaw("currency.balance",
+                "symbol", plugin.getLang().getCurrencySymbol(),
+                "amount", plugin.getLang().formatAmount(b),
+                "currency", plugin.getLang().getCurrencyName())));
             return true;
         }
-
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage("&cConsole must specify a player: /bellcoins balance <player>");
-            return true;
-        }
-        if (!player.hasPermission("bellmarket.coins.balance")) {
-            player.sendMessage(lang.component("no-permission"));
-            return true;
-        }
-        long bal = cm.getBalance(player.getUniqueId());
-        player.sendMessage(lang.component("currency.balance",
-                "symbol", lang.getCurrencySymbol(),
-                "amount", lang.formatAmount(bal),
-                "currency", lang.getCurrencyName()));
+        if (!sender.hasPermission("bellmarket.coins.balance.others")) {
+            sender.sendMessage(c(plugin.getLang().getRaw("no-permission"))); return true; }
+        Player t = Bukkit.getPlayer(args[1]);
+        if (t == null) { sender.sendMessage(c(plugin.getLang().getRaw("player-not-found", "player", args[1]))); return true; }
+        long b = plugin.getCurrency().getBalance(t);
+        sender.sendMessage(c(plugin.getLang().getRaw("currency.balance-other",
+            "player", t.getName(), "symbol", plugin.getLang().getCurrencySymbol(),
+            "amount", plugin.getLang().formatAmount(b), "currency", plugin.getLang().getCurrencyName())));
         return true;
     }
 
-    private boolean cmdGive(CommandSender sender, String[] args, LangManager lang, CurrencyManager cm) {
-        if (!sender.hasPermission("bellmarket.coins.give")) {
-            sender.sendMessage(lang.component("no-permission")); return true;
-        }
-        if (args.length < 3) {
-            sender.sendMessage(LangManager.colorize("&cUsage: /bellcoins give <player> <amount>")); return true;
-        }
-        Player target = Bukkit.getPlayer(args[1]);
-        if (target == null) { sender.sendMessage(lang.component("player-not-found", "player", args[1])); return true; }
-        long amount = parseAmount(args[2]);
-        if (amount < 0) { sender.sendMessage(lang.component("invalid-amount")); return true; }
-
-        cm.addCoins(target.getUniqueId(), amount);
-        sender.sendMessage(lang.component("currency.given",
-                "symbol", lang.getCurrencySymbol(), "amount", lang.formatAmount(amount),
-                "currency", lang.getCurrencyName(), "player", target.getName()));
-        target.sendMessage(lang.component("currency.received",
-                "symbol", lang.getCurrencySymbol(), "amount", lang.formatAmount(amount),
-                "currency", lang.getCurrencyName()));
+    private boolean modify(CommandSender sender, String[] args, String action) {
+        String perm = action.equals("give") ? "bellmarket.coins.give" : "bellmarket.coins.take";
+        if (!sender.hasPermission(perm)) { sender.sendMessage(c(plugin.getLang().getRaw("no-permission"))); return true; }
+        if (args.length < 3) { sender.sendMessage(c("&cUsage: /bc " + action + " <player> <amount>")); return true; }
+        Player t = Bukkit.getPlayer(args[1]);
+        if (t == null) { sender.sendMessage(c(plugin.getLang().getRaw("player-not-found", "player", args[1]))); return true; }
+        long amount; try { amount = Long.parseLong(args[2]); } catch (NumberFormatException e) {
+            sender.sendMessage(c(plugin.getLang().getRaw("invalid-amount"))); return true; }
+        if (action.equals("give")) plugin.getCurrency().addCoins(t, amount, "admin");
+        else plugin.getCurrency().takeCoins(t, amount, "admin");
+        sender.sendMessage(c(plugin.getLang().getRaw("currency." + action + "n",
+            "player", t.getName(), "symbol", plugin.getLang().getCurrencySymbol(),
+            "amount", String.valueOf(amount), "currency", plugin.getLang().getCurrencyName())));
         return true;
     }
 
-    private boolean cmdTake(CommandSender sender, String[] args, LangManager lang, CurrencyManager cm) {
-        if (!sender.hasPermission("bellmarket.coins.take")) {
-            sender.sendMessage(lang.component("no-permission")); return true;
-        }
-        if (args.length < 3) {
-            sender.sendMessage(LangManager.colorize("&cUsage: /bellcoins take <player> <amount>")); return true;
-        }
-        Player target = Bukkit.getPlayer(args[1]);
-        if (target == null) { sender.sendMessage(lang.component("player-not-found", "player", args[1])); return true; }
-        long amount = parseAmount(args[2]);
-        if (amount < 0) { sender.sendMessage(lang.component("invalid-amount")); return true; }
-
-        cm.takeCoins(target.getUniqueId(), amount);
-        sender.sendMessage(lang.component("currency.taken",
-                "symbol", lang.getCurrencySymbol(), "amount", lang.formatAmount(amount),
-                "currency", lang.getCurrencyName(), "player", target.getName()));
-        target.sendMessage(lang.component("currency.removed",
-                "symbol", lang.getCurrencySymbol(), "amount", lang.formatAmount(amount),
-                "currency", lang.getCurrencyName()));
-        return true;
-    }
-
-    private boolean cmdSet(CommandSender sender, String[] args, LangManager lang, CurrencyManager cm) {
+    private boolean modifySet(CommandSender sender, String[] args) {
         if (!sender.hasPermission("bellmarket.coins.set")) {
-            sender.sendMessage(lang.component("no-permission")); return true;
-        }
-        if (args.length < 3) {
-            sender.sendMessage(LangManager.colorize("&cUsage: /bellcoins set <player> <amount>")); return true;
-        }
-        Player target = Bukkit.getPlayer(args[1]);
-        if (target == null) { sender.sendMessage(lang.component("player-not-found", "player", args[1])); return true; }
-        long amount = parseAmount(args[2]);
-        if (amount < 0) { sender.sendMessage(lang.component("invalid-amount")); return true; }
-
-        cm.setBalance(target.getUniqueId(), amount);
-        sender.sendMessage(lang.component("currency.set",
-                "symbol", lang.getCurrencySymbol(), "amount", lang.formatAmount(amount),
-                "currency", lang.getCurrencyName(), "player", target.getName()));
+            sender.sendMessage(c(plugin.getLang().getRaw("no-permission"))); return true; }
+        if (args.length < 3) { sender.sendMessage(c("&cUsage: /bc set <player> <amount>")); return true; }
+        Player t = Bukkit.getPlayer(args[1]);
+        if (t == null) { sender.sendMessage(c(plugin.getLang().getRaw("player-not-found", "player", args[1]))); return true; }
+        long amount; try { amount = Long.parseLong(args[2]); } catch (NumberFormatException e) {
+            sender.sendMessage(c(plugin.getLang().getRaw("invalid-amount"))); return true; }
+        plugin.getCurrency().setBalance(t, amount);
+        sender.sendMessage(c(plugin.getLang().getRaw("currency.set",
+            "player", t.getName(), "symbol", plugin.getLang().getCurrencySymbol(),
+            "amount", String.valueOf(amount), "currency", plugin.getLang().getCurrencyName())));
         return true;
     }
 
-    private boolean cmdTop(CommandSender sender, LangManager lang, CurrencyManager cm) {
+    private boolean top(CommandSender sender) {
         if (!sender.hasPermission("bellmarket.coins.top")) {
-            sender.sendMessage(lang.component("no-permission")); return true;
-        }
-        sender.sendMessage(lang.component("currency.top-header", "currency", lang.getCurrencyName()));
-        List<Map.Entry<UUID, Long>> top = cm.getTopList(10);
-        for (int i = 0; i < top.size(); i++) {
-            Map.Entry<UUID, Long> entry = top.get(i);
-            String name = cm.getPlayerName(entry.getKey());
-            sender.sendMessage(lang.component("currency.top-entry",
-                    "rank", String.valueOf(i + 1),
-                    "player", name,
-                    "symbol", lang.getCurrencySymbol(),
-                    "amount", lang.formatAmount(entry.getValue())));
+            sender.sendMessage(c(plugin.getLang().getRaw("no-permission"))); return true; }
+        sender.sendMessage(c(plugin.getLang().getRaw("currency.top-header", "currency", plugin.getLang().getCurrencyName())));
+        int rank = 1;
+        for (var entry : plugin.getCurrency().getTopList(10)) {
+            String name = plugin.getCurrency().getPlayerName(entry.getKey());
+            sender.sendMessage(c(plugin.getLang().getRaw("currency.top-entry",
+                "rank", String.valueOf(rank++), "player", name,
+                "symbol", plugin.getLang().getCurrencySymbol(),
+                "amount", plugin.getLang().formatAmount(entry.getValue()))));
         }
         return true;
     }
 
-    private long parseAmount(String s) {
-        try { return Long.parseLong(s); }
-        catch (Exception e) { return -1; }
-    }
-
-    @Override
-    public List<String> onTabComplete(CommandSender s, Command c, String a, String[] args) {
-        if (args.length == 1) {
-            return List.of("balance","give","take","set","top").stream()
-                    .filter(sub -> sub.startsWith(args[0].toLowerCase()))
-                    .toList();
-        }
-        return List.of();
-    }
+    private Component c(String s) { return LegacyComponentSerializer.legacyAmpersand().deserialize(s); }
 }
