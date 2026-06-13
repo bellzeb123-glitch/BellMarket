@@ -95,32 +95,3 @@ viptoken:
   no-permission:    '&cYou do not have permission.'
   player-not-found: '&cPlayer not found: &f{name}'
   invalid-amount:   '&cAmount must be a positive number.'
-
-# ─────────────────────────────────────────────
-# Price Editor (/bm prices and admin panel)
-# ─────────────────────────────────────────────
-price-editor:
-  title-tiers: "&8❀ &5&lEdit Prices &7— Tiers"
-  title-skins: "&8❀ &5&lEdit Prices &7— {tier}"
-  no-tiers: "&cNo SkinStudio tiers detected."
-  no-skins: "&cNo skins in tier: &f{tier}"
-  back-to-admin: "&c← Back to Admin"
-  back-to-tiers: "&c← Back to tiers"
-  prev-page: "&7← Previous Page"
-  next-page: "&7Next Page →"
-  skins-count: "&7Skins: &f{count}"
-  tier-default: "&8(tier default)"
-  skin-price: "&7Price: &e{price} {currency}"
-  click-set-price: "&eLeft-click: &fset price"
-  shift-reset: "&eShift-click: &freset to tier default"
-  setting-price: "&7Setting price for &f{skin}"
-  type-price: "&7Type the new price in chat, or type &fcancel&7 to abort."
-  price-set: "&aSet &f{skin} &ato &e{price} {currency}"
-  price-reset: "&aReset &f{skin} &ato tier default."
-  cancelled: "&7Price edit cancelled."
-  invalid-price: "&cInvalid price. Enter a positive whole number."
-  tier-lore:
-    - "&7Skins: &f{count}"
-    - "&7Default price: &e{price} {currency}"
-    - ""
-    - "&eClick &7to edit skins"

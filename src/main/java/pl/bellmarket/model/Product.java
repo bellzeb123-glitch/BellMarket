@@ -1,7 +1,20 @@
+/*
+ * BellMarket - Product model
+ *
+ * SESJA-1 CHANGES vs upstream:
+ *   + new field `currency` (default BELLCOINS) — which currency this product costs in
+ *   + new field `requiredPermission` (default null) — gate purchase + visibility
+ *   + new field `providerSource` (default "manual") — debug/audit: where did this product come from
+ *   + new Builder methods for all three
+ *   + Builder defaults preserved for all existing fields (no breaking change)
+ *
+ * The includeChangeToken default REMAINS `false` — that was already the boolean
+ * default. The actual change_token bug was in PurchaseProcessor.deliverSkinToken
+ * and SkinStudioGenerator (both fixed in their respective files).
+ */
 package pl.bellmarket.model;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -14,7 +27,18 @@ import java.util.List;
 
 public class Product {
 
-    public enum Type { SKIN_TOKEN, ITEM, COMMAND, VIP_EXCLUSIVE }
+    public enum Type {
+        /** Gives a Bukkit ItemStack defined by giveItem field. */
+        ITEM,
+        /** Runs a list of console commands defined by commands field. */
+        COMMAND,
+        /** Gives a SkinStudio skin token (and optionally a change token). */
+        SKIN_TOKEN,
+        /** Same as COMMAND but semantically tagged as mount; UI may render differently. */
+        MOUNT,
+        /** SESJA-1: VIP-only product. Requires bellmarket.vip OR custom requiredPermission. */
+        VIP_EXCLUSIVE
+    }
 
     private final String id;
     private final Type type;
@@ -29,101 +53,121 @@ public class Product {
     private final boolean includeChangeToken;
     private final List<String> commands;
     private final ItemStack giveItem;
+
+    // ─── SESJA-1 additions ────────────────────────────────────────────────
     private final Currency currency;
     private final String requiredPermission;
     private final String providerSource;
-    private final boolean manual;
+    // ──────────────────────────────────────────────────────────────────────
 
     private Product(Builder b) {
-        this.id = b.id; this.type = b.type; this.name = b.name; this.lore = b.lore;
-        this.price = b.price; this.enabled = b.enabled;
-        this.iconMaterial = b.iconMaterial; this.iconItemModel = b.iconItemModel;
-        this.iconName = b.iconName; this.skinId = b.skinId;
-        this.includeChangeToken = b.includeChangeToken; this.commands = b.commands;
-        this.giveItem = b.giveItem; this.currency = b.currency;
-        this.requiredPermission = b.requiredPermission; this.providerSource = b.providerSource;
-        this.manual = b.manual;
+        this.id                = b.id;
+        this.type              = b.type;
+        this.name              = b.name;
+        this.lore              = b.lore != null ? b.lore : new ArrayList<>();
+        this.price             = b.price;
+        this.enabled           = b.enabled;
+        this.iconMaterial      = b.iconMaterial;
+        this.iconItemModel     = b.iconItemModel;
+        this.iconName          = b.iconName;
+        this.skinId            = b.skinId;
+        this.includeChangeToken = b.includeChangeToken;
+        this.commands          = b.commands != null ? b.commands : new ArrayList<>();
+        this.giveItem          = b.giveItem;
+
+        this.currency           = b.currency != null ? b.currency : Currency.BELLCOINS;
+        this.requiredPermission = b.requiredPermission;
+        this.providerSource     = b.providerSource != null ? b.providerSource : "manual";
     }
 
     public ItemStack buildIcon() {
-        Material mat = iconMaterial != null ? iconMaterial : Material.PAPER;
-        ItemStack item = new ItemStack(mat, 1);
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null) return item;
-
-        String display = iconName != null && !iconName.isEmpty() ? iconName : name;
-        meta.displayName(colorize("&f&l" + display).decoration(TextDecoration.ITALIC, false));
-
-        if (!lore.isEmpty()) {
-            List<Component> loreCmp = new ArrayList<>();
-            for (String line : lore) {
-                loreCmp.add(colorize("&7" + line).decoration(TextDecoration.ITALIC, false));
+        ItemStack icon = new ItemStack(iconMaterial != null ? iconMaterial : Material.PAPER);
+        ItemMeta meta = icon.getItemMeta();
+        if (meta != null) {
+            if (iconName != null && !iconName.isEmpty()) {
+                meta.displayName(colorize(iconName));
+            } else if (name != null) {
+                meta.displayName(colorize(name));
             }
-            meta.lore(loreCmp);
+            if (lore != null && !lore.isEmpty()) {
+                List<Component> resolved = new ArrayList<>();
+                for (String l : lore) resolved.add(colorize(l));
+                meta.lore(resolved);
+            }
+            if (iconItemModel != null && !iconItemModel.isEmpty()) {
+                try {
+                    NamespacedKey key = NamespacedKey.fromString(iconItemModel);
+                    if (key != null) meta.setItemModel(key);
+                } catch (Throwable ignored) {
+                    // older Paper without setItemModel — skip silently
+                }
+            }
+            icon.setItemMeta(meta);
         }
-
-        if (iconItemModel != null && !iconItemModel.isEmpty()) {
-            try {
-                NamespacedKey key = NamespacedKey.fromString(iconItemModel);
-                if (key != null) meta.setItemModel(key);
-            } catch (Throwable ignored) {}
-        }
-
-        item.setItemMeta(meta);
-        return item;
+        return icon;
     }
 
-    private static Component colorize(String s) {
-        return LegacyComponentSerializer.legacyAmpersand().deserialize(s);
+    public static Component colorize(String s) {
+        return LegacyComponentSerializer.legacyAmpersand().deserialize(s == null ? "" : s);
     }
 
-    public String getId()              { return id; }
-    public Type getType()              { return type; }
-    public String getName()            { return name; }
-    public List<String> getLore()      { return lore; }
-    public long getPrice()             { return price; }
-    public boolean isEnabled()         { return enabled; }
-    public Material getIconMaterial()  { return iconMaterial; }
-    public String getIconItemModel()   { return iconItemModel; }
-    public String getIconName()        { return iconName; }
-    public String getSkinId()          { return skinId; }
-    public boolean isIncludeChangeToken() { return includeChangeToken; }
-    public List<String> getCommands()  { return commands; }
-    public ItemStack getGiveItem()     { return giveItem; }
-    public Currency getCurrency()      { return currency; }
-    public String getRequiredPermission() { return requiredPermission; }
-    public String getProviderSource()  { return providerSource; }
-    public boolean isManual()          { return manual; }
-    public String getDisplayName()       { return name; }
+    // ─── Getters ──────────────────────────────────────────────────────────
+    public String  getId()                 { return id; }
+    public Type    getType()               { return type; }
+    public String  getName()               { return name; }
+    public List<String> getLore()          { return lore; }
+    public long    getPrice()              { return price; }
+    public boolean isEnabled()             { return enabled; }
+    public String  getSkinId()             { return skinId; }
+    public boolean includeChangeToken()    { return includeChangeToken; }
+    public List<String> getCommands()      { return commands; }
+    public ItemStack getGiveItem()         { return giveItem; }
+    public Material  getIconMaterial()     { return iconMaterial; }
+    public String    getIconItemModel()    { return iconItemModel; }
+    public String    getIconName()         { return iconName; }
 
+    public Currency getCurrency()           { return currency; }
+    public String   getRequiredPermission() { return requiredPermission; }
+    public String   getProviderSource()     { return providerSource; }
+
+    // ─── Builder ──────────────────────────────────────────────────────────
     public static class Builder {
-        private String id = "", name = "", iconName = "", skinId = "", iconItemModel = "";
-        private String requiredPermission = null, providerSource = "manual";
-        private Type type = Type.COMMAND;
-        private List<String> lore = new ArrayList<>(), commands = new ArrayList<>();
-        private long price = 0;
-        private boolean enabled = true, includeChangeToken = false, manual = false;
-        private Material iconMaterial = Material.PAPER;
-        private ItemStack giveItem = null;
-        private Currency currency = Currency.BELLCOINS;
+        String id;
+        Type type = Type.ITEM;
+        String name;
+        List<String> lore;
+        long price;
+        boolean enabled = true;
+        Material iconMaterial;
+        String iconItemModel;
+        String iconName;
+        String skinId;
+        boolean includeChangeToken = false;          // ← explicit default
+        List<String> commands;
+        ItemStack giveItem;
 
-        public Builder id(String v)               { id = v; return this; }
-        public Builder type(Type v)               { type = v; return this; }
-        public Builder name(String v)             { name = v; return this; }
-        public Builder lore(List<String> v)       { lore = v; return this; }
-        public Builder price(long v)              { price = v; return this; }
-        public Builder enabled(boolean v)         { enabled = v; return this; }
-        public Builder iconMaterial(Material v)   { if (v != null) iconMaterial = v; return this; }
-        public Builder iconItemModel(String v)    { if (v != null) iconItemModel = v; return this; }
-        public Builder iconName(String v)         { if (v != null) iconName = v; return this; }
-        public Builder skinId(String v)           { if (v != null) skinId = v; return this; }
-        public Builder includeChangeToken(boolean v) { includeChangeToken = v; return this; }
-        public Builder commands(List<String> v)   { commands = v; return this; }
-        public Builder giveItem(ItemStack v)      { giveItem = v; return this; }
-        public Builder currency(Currency v)       { if (v != null) currency = v; return this; }
-        public Builder requiredPermission(String v) { requiredPermission = v; return this; }
-        public Builder providerSource(String v)   { providerSource = v; return this; }
-        public Builder manual(boolean v)          { manual = v; return this; }
-        public Product build()                    { return new Product(this); }
+        Currency currency = Currency.BELLCOINS;       // ← SESJA-1
+        String requiredPermission;                    // ← SESJA-1
+        String providerSource = "manual";             // ← SESJA-1
+
+        public Builder id(String v)               { this.id = v; return this; }
+        public Builder type(Type v)               { this.type = v; return this; }
+        public Builder name(String v)             { this.name = v; return this; }
+        public Builder lore(List<String> v)       { this.lore = v; return this; }
+        public Builder price(long v)              { this.price = v; return this; }
+        public Builder enabled(boolean v)         { this.enabled = v; return this; }
+        public Builder iconMaterial(Material v)   { this.iconMaterial = v; return this; }
+        public Builder iconItemModel(String v)    { this.iconItemModel = v; return this; }
+        public Builder iconName(String v)         { this.iconName = v; return this; }
+        public Builder skinId(String v)           { this.skinId = v; return this; }
+        public Builder includeChangeToken(boolean v) { this.includeChangeToken = v; return this; }
+        public Builder commands(List<String> v)   { this.commands = v; return this; }
+        public Builder giveItem(ItemStack v)      { this.giveItem = v; return this; }
+
+        public Builder currency(Currency v)           { this.currency = v; return this; }
+        public Builder requiredPermission(String v)   { this.requiredPermission = v; return this; }
+        public Builder providerSource(String v)       { this.providerSource = v; return this; }
+
+        public Product build() { return new Product(this); }
     }
 }

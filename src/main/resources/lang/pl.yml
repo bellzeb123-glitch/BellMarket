@@ -95,32 +95,3 @@ viptoken:
   no-permission:    '&cBrak uprawnień.'
   player-not-found: '&cNie znaleziono gracza: &f{name}'
   invalid-amount:   '&cIlość musi być liczbą dodatnią.'
-
-# ─────────────────────────────────────────────
-# Edytor cen (/bm prices i panel admina)
-# ─────────────────────────────────────────────
-price-editor:
-  title-tiers: "&8❀ &5&lEdycja cen &7— Poziomy"
-  title-skins: "&8❀ &5&lEdycja cen &7— {tier}"
-  no-tiers: "&cNie wykryto poziomów SkinStudio."
-  no-skins: "&cBrak skórek w poziomie: &f{tier}"
-  back-to-admin: "&c← Powrót do Admina"
-  back-to-tiers: "&c← Powrót do poziomów"
-  prev-page: "&7← Poprzednia strona"
-  next-page: "&7Następna strona →"
-  skins-count: "&7Skórki: &f{count}"
-  tier-default: "&8(domyślna poziomu)"
-  skin-price: "&7Cena: &e{price} {currency}"
-  click-set-price: "&eLewy klik: &fustaw cenę"
-  shift-reset: "&eShift-klik: &fprzywróć domyślną"
-  setting-price: "&7Ustawianie ceny dla &f{skin}"
-  type-price: "&7Wpisz nową cenę na czacie, lub wpisz &fcancel&7 aby anulować."
-  price-set: "&aUstawiono &f{skin} &ana &e{price} {currency}"
-  price-reset: "&aPrzywrócono &f{skin} &ado domyślnej ceny poziomu."
-  cancelled: "&7Anulowano edycję ceny."
-  invalid-price: "&cNieprawidłowa cena. Podaj dodatnią liczbę całkowitą."
-  tier-lore:
-    - "&7Skórki: &f{count}"
-    - "&7Domyślna cena: &e{price} {currency}"
-    - ""
-    - "&eKliknij &7aby edytować skórki"

@@ -2,18 +2,14 @@ name: BellMarket
 version: 1.26.1.2
 main: pl.bellmarket.BellMarket
 api-version: "26.1.2"
-description: Universal shop plugin with dual currency, VIP system and SkinStudio integration
+description: Universal shop plugin with auto-detection for SkinStudio, MythicMobs, EliteMobs and FMM
 authors: [Bellzeb]
 website: ''
-
-# Free needs only SkinStudio. MythicMobs/EliteMobs/FMM auto-detection is in BellMarketPro addon.
-softdepend:
-  - SkinStudio
 
 commands:
   bellmarket:
     description: Opens the BellMarket shop
-    usage: /bellmarket [admin|reload|prices|lang]
+    usage: /bellmarket [admin|reload|generate|lang|prices]
     aliases: [bm, shop]
   bellcoins:
     description: Manage BellCoins currency
@@ -26,31 +22,41 @@ commands:
 
 permissions:
   bellmarket.shop:
-    description: Open shop
+    description: Allows opening the shop
     default: true
   bellmarket.admin:
-    description: Admin commands and price editor
+    description: Allows admin commands, panel and price editor
     default: op
   bellmarket.vip:
-    description: Access VIP category
+    description: Grants visibility & purchase rights for VIP-exclusive products
     default: false
   bellmarket.coins.balance:
+    description: Check own BellCoins balance
     default: true
   bellmarket.coins.balance.others:
+    description: Check other players BellCoins balance
     default: op
   bellmarket.coins.give:
+    description: Give BellCoins to players
     default: op
   bellmarket.coins.take:
+    description: Take BellCoins from players
     default: op
   bellmarket.coins.set:
+    description: Set player BellCoins
     default: op
   bellmarket.coins.top:
+    description: View BellCoins leaderboard
     default: true
   bellmarket.viptoken.balance:
+    description: Check own VIP Tokens balance
     default: true
   bellmarket.viptoken.balance.others:
+    description: Check other players VIP Tokens balance
     default: op
   bellmarket.viptoken.admin:
+    description: Give / take / set VIP Tokens
     default: op
   bellmarket.viptoken.top:
+    description: View VIP Tokens leaderboard
     default: true
