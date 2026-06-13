@@ -1,25 +1,22 @@
-/*
- * BellMarket - BellMarketCommand (FIXES4)
- *
- * Change: /bm for VIP players opens featured category directly.
- * Non-VIP players see the main menu as before.
- */
 package pl.bellmarket.command;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import org.bukkit.Bukkit;
-import org.bukkit.command.*;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import pl.bellmarket.BellMarket;
 import pl.bellmarket.gui.AdminGUI;
 import pl.bellmarket.gui.PriceEditorGUI;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 public class BellMarketCommand implements CommandExecutor, TabCompleter {
 
-    private static final List<String> SUBS = List.of("admin", "reload", "generate", "lang", "prices");
     private static final List<String> LANGS = List.of("en", "pl");
 
     private final BellMarket plugin;
@@ -30,110 +27,131 @@ public class BellMarketCommand implements CommandExecutor, TabCompleter {
         this.plugin = plugin;
         this.adminGUI = new AdminGUI(plugin);
         this.priceEditor = new PriceEditorGUI(plugin);
-        PluginCommand cmd = plugin.getCommand("bellmarket");
-        if (cmd != null) cmd.setTabCompleter(this);
     }
 
-    public AdminGUI getAdminGUI()          { return adminGUI; }
-    public PriceEditorGUI getPriceEditor() { return priceEditor; }
+    public AdminGUI getAdminGUI()           { return adminGUI; }
+    public PriceEditorGUI getPriceEditor()  { return priceEditor; }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (args.length == 0) return openShop(sender);
-        return switch (args[0].toLowerCase(Locale.ROOT)) {
-            case "admin"    -> openAdmin(sender);
-            case "reload"   -> doReload(sender);
-            case "generate" -> doGenerate(sender, args);
-            case "lang"     -> doLang(sender, args);
-            case "prices"   -> openPrices(sender);
-            default         -> openShop(sender);
-        };
+        if (args.length == 0) {
+            // /bm — open the shop
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage(c(plugin.getLang().getRaw("player-only")));
+                return true;
+            }
+            plugin.getShopGUI().openMainMenu(player);
+            return true;
+        }
+
+        String sub = args[0].toLowerCase(Locale.ROOT);
+        switch (sub) {
+            case "admin"    -> { return doAdmin(sender); }
+            case "reload"   -> { return doReload(sender); }
+            case "generate" -> { return doReload(sender); }
+            case "prices"   -> { return doPrices(sender); }
+            case "lang"     -> { return doLang(sender, args); }
+            default -> {
+                if (sender instanceof Player player) {
+                    plugin.getShopGUI().openMainMenu(player);
+                } else {
+                    sender.sendMessage(c("&7Usage: &f/bm [admin|reload|prices|lang]"));
+                }
+                return true;
+            }
+        }
     }
 
-    private boolean openShop(CommandSender sender) {
-        if (!(sender instanceof Player player)) { sender.sendMessage("Player only."); return true; }
-        if (!player.hasPermission("bellmarket.shop")) {
-            player.sendMessage(plugin.getLang().component("no-permission")); return true;
+    private boolean doAdmin(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(c(plugin.getLang().getRaw("player-only")));
+            return true;
         }
-        plugin.getShopGUI().openMainMenu(player);
+        if (!player.hasPermission("bellmarket.admin")) {
+            player.sendMessage(c(plugin.getLang().getRaw("no-permission")));
+            return true;
+        }
+        adminGUI.openFor(player);
         return true;
     }
 
-    private boolean openAdmin(CommandSender sender) {
-        if (!(sender instanceof Player player)) { sender.sendMessage("Player only."); return true; }
-        if (!player.hasPermission("bellmarket.admin")) {
-            player.sendMessage(plugin.getLang().component("no-permission")); return true;
+    private boolean doPrices(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(c(plugin.getLang().getRaw("player-only")));
+            return true;
         }
-        adminGUI.openFor(player); return true;
+        if (!player.hasPermission("bellmarket.admin")) {
+            player.sendMessage(c(plugin.getLang().getRaw("no-permission")));
+            return true;
+        }
+        priceEditor.openTierList(player);
+        return true;
     }
 
     private boolean doReload(CommandSender sender) {
         if (!sender.hasPermission("bellmarket.admin")) {
-            sender.sendMessage(plugin.getLang().component("no-permission")); return true;
+            sender.sendMessage(c(plugin.getLang().getRaw("no-permission")));
+            return true;
         }
-        plugin.reload();
-        sender.sendMessage(plugin.getLang().component("admin.reloaded")); return true;
-    }
-
-    private boolean doGenerate(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("bellmarket.admin")) {
-            sender.sendMessage(plugin.getLang().component("no-permission")); return true;
+        try {
+            plugin.reload();
+            sender.sendMessage(plugin.getLang().component("admin.reloaded"));
+        } catch (Exception e) {
+            sender.sendMessage(c("&cReload failed: " + e.getMessage()));
+            plugin.getLogger().warning("Reload error: " + e.getMessage());
         }
-        long price = 100;
-        if (args.length >= 2) { try { price = Long.parseLong(args[1]); } catch (Exception ignored) {} }
-        final long fp = price;
-        sender.sendMessage(colorize("&8[&6BellMarket&8] &eGenerating from SkinStudio..."));
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            plugin.getConfig().set("providers.skinstudio.default-price", fp);
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                plugin.reload();
-                int count = plugin.getCategories().getCategories().stream()
-                    .filter(c -> c.getId().startsWith("skinstudio_"))
-                    .mapToInt(c -> c.getProducts().size()).sum();
-                sender.sendMessage(colorize(count > 0
-                    ? "&8[&6BellMarket&8] &aGenerated &f" + count + "&a SkinStudio products!"
-                    : "&8[&6BellMarket&8] &7No SkinStudio products generated."));
-            });
-        });
         return true;
     }
 
+    /**
+     * /bm lang <en|pl> — switches language GLOBALLY.
+     *
+     * Fix: previously only LangManager.reload() ran, so the shop GUI and other
+     * managers kept the old language. Now we call the full plugin.reload(),
+     * which reloads config + lang + categories + providers — so the change is
+     * reflected everywhere (/bm, /bm admin, all GUIs).
+     */
     private boolean doLang(CommandSender sender, String[] args) {
         if (!sender.hasPermission("bellmarket.admin")) {
-            sender.sendMessage(plugin.getLang().component("no-permission")); return true;
+            sender.sendMessage(c(plugin.getLang().getRaw("no-permission")));
+            return true;
         }
         if (args.length < 2) {
-            sender.sendMessage(colorize("&8[&6BellMarket&8] &7Current language: &f"
-                + plugin.getConfig().getString("language", "en")));
-            sender.sendMessage(colorize("&7Usage: &f/bm lang <en|pl>"));
+            String current = plugin.getConfig().getString("language", "en");
+            sender.sendMessage(c("&8[&6BellMarket&8] &7Current language: &f" + current.toUpperCase()));
+            sender.sendMessage(c("&7Usage: &f/bm lang <en|pl>"));
             return true;
         }
         String lang = args[1].toLowerCase(Locale.ROOT);
-        if (!LANGS.contains(lang)) { sender.sendMessage(colorize("&cAvailable: en, pl")); return true; }
+        if (!LANGS.contains(lang)) {
+            sender.sendMessage(c("&7Usage: &f/bm lang <en|pl>"));
+            return true;
+        }
+
         plugin.getConfig().set("language", lang);
         plugin.saveConfig();
-        plugin.getLang().reload();
-        sender.sendMessage(colorize("&8[&6BellMarket&8] &aLanguage switched to: &f" + lang));
-        return true;
-    }
+        plugin.reload();   // ← KEY FIX: full reload, language now global
 
-    private boolean openPrices(CommandSender sender) {
-        if (!(sender instanceof Player player)) { sender.sendMessage("Player only."); return true; }
-        if (!player.hasPermission("bellmarket.admin")) {
-            player.sendMessage(plugin.getLang().component("no-permission")); return true;
-        }
-        priceEditor.openTierList(player); return true;
+        sender.sendMessage(c("&8[&6BellMarket&8] &aLanguage switched to: &f" + lang.toUpperCase()));
+        return true;
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String label, String[] args) {
-        if (args.length == 1) return SUBS.stream().filter(s -> s.startsWith(args[0].toLowerCase())).toList();
-        if (args.length == 2 && "lang".equalsIgnoreCase(args[0]))
-            return LANGS.stream().filter(l -> l.startsWith(args[1].toLowerCase())).toList();
-        return List.of();
+        List<String> out = new ArrayList<>();
+        if (args.length == 1) {
+            for (String s : List.of("admin", "reload", "prices", "lang")) {
+                if (s.startsWith(args[0].toLowerCase(Locale.ROOT))) out.add(s);
+            }
+        } else if (args.length == 2 && args[0].equalsIgnoreCase("lang")) {
+            for (String s : LANGS) {
+                if (s.startsWith(args[1].toLowerCase(Locale.ROOT))) out.add(s);
+            }
+        }
+        return out;
     }
 
-    private Component colorize(String s) {
+    private Component c(String s) {
         return LegacyComponentSerializer.legacyAmpersand().deserialize(s);
     }
 }

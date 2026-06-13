@@ -85,12 +85,11 @@ public class AdminGUI implements Listener {
             "&7and config without server restart.",
             "", "&eClick to reload"));
 
-        inv.setItem(12, makeItem(Material.CHEST, "&a&lCategories",
+        inv.setItem(12, makeItem(Material.GOLD_NUGGET, "&a&lEdit Prices",
+            "&7Open the price editor for all",
+            "&7categories and products.",
             "&7Loaded: &f" + plugin.getCategories().getCategories().size() + " categories",
-            "&7Total products: &f" +
-                plugin.getCategories().getCategories().stream()
-                    .mapToInt(cat -> cat.getProducts().size()).sum(),
-            "", "&7Categories listed below"));
+            "", "&eClick to open price editor"));
 
         inv.setItem(14, makeItem(Material.WRITABLE_BOOK, "&b&lLanguage",
             "&7Current: &f" + plugin.getConfig().getString("language", "en").toUpperCase(),
@@ -149,6 +148,18 @@ public class AdminGUI implements Listener {
                 openFor(player);
                 return;
             }
+            case 12 -> {
+                // Open the full price editor (all categories)
+                player.closeInventory();
+                player.playSound(player, Sound.UI_BUTTON_CLICK, 1f, 1f);
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    var bmCmd = plugin.getBellMarketCommand();
+                    if (bmCmd != null && bmCmd.getPriceEditor() != null) {
+                        bmCmd.getPriceEditor().openTierList(player);
+                    }
+                });
+                return;
+            }
             case 49 -> {
                 player.closeInventory();
                 return;
@@ -161,10 +172,17 @@ public class AdminGUI implements Listener {
             if (index >= cats.size()) return;
             Category cat = cats.get(index);
             player.closeInventory();
-            player.sendMessage(c("&8[&6BellMarket&8] &7Opening: &f" + cat.getName()));
+            player.sendMessage(c("&8[&6BellMarket&8] &7Editing prices: &f" + cat.getName()));
             player.playSound(player, Sound.UI_BUTTON_CLICK, 1f, 1f);
-            Bukkit.getScheduler().runTask(plugin,
-                () -> plugin.getShopGUI().openCategory(player, cat.getId(), 0));
+            // Open the price editor for this category (not the shop)
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                var bmCmd = plugin.getBellMarketCommand();
+                if (bmCmd != null && bmCmd.getPriceEditor() != null) {
+                    bmCmd.getPriceEditor().openSkinList(player, cat.getId(), 0);
+                } else {
+                    player.sendMessage(c("&cPrice editor unavailable."));
+                }
+            });
         }
     }
 
