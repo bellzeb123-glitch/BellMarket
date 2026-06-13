@@ -1,25 +1,20 @@
 /*
- * BellMarket - FreeMinecraftModelsProvider (SESJA-3 FIX5)
+ * BellMarket - FreeMinecraftModelsProvider (SESJA-3 FIX4)
  *
- * FMM models are world entities (furniture, props, mounts).
- * Buying = receiving a PAPER item with FMM's PDC tags.
- * When the item is placed/used, FMM spawns the entity.
- * This mirrors what /fmm craftify produces as output.
+ * FIX: Filesystem scan now finds BOTH:
+ *   - .bbmodel files directly in models/ → model ID = filename
+ *   - directories containing .bbmodel → model ID = dirname
+ *   - subdirectories recursively
  *
- * Icon fix: model key = "freeminecraftmodels:display/<modelId>"
- * (NO _idle suffix for CraftifyCommand output items)
- *
- * Model detection: FileModelConverter.getConvertedFileModels() via reflection
+ * FMM API fix: getConvertedFileModels() is NOT static — needs
+ * instance lookup via FMM plugin class.
  */
 package pl.bellmarket.provider;
 
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 import pl.bellmarket.BellMarket;
 import pl.bellmarket.currency.Currency;
@@ -51,12 +46,13 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
         Plugin fmm = plugin.getServer().getPluginManager().getPlugin("FreeMinecraftModels");
         if (fmm == null) return Collections.emptyList();
 
+        // Get model IDs - try API first, fall back to filesystem
         Set<String> modelIds = getModelIds(fmm);
         if (modelIds.isEmpty()) {
             plugin.getLogger().info("[FMMProvider] No models found.");
             return Collections.emptyList();
         }
-        plugin.getLogger().info("[FMMProvider] Found " + modelIds.size() + " models: " + modelIds);
+        plugin.getLogger().info("[FMMProvider] Found " + modelIds.size() + " models.");
 
         FileConfiguration cfg = loadOrCreateProviderConfig(fmm, modelIds, defaultPrice);
         if (!cfg.getBoolean("enabled", true)) return Collections.emptyList();
@@ -90,7 +86,7 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
 
             String display  = catCfg != null ? catCfg.getString("display-name", capitalize(catKey)) : capitalize(catKey);
             String color    = catCfg != null ? catCfg.getString("color", "&b") : "&b";
-            Material icon   = parseMaterial(catCfg != null ? catCfg.getString("icon") : null, Material.PAPER);
+            Material icon   = parseMaterial(catCfg != null ? catCfg.getString("icon") : null, Material.PLAYER_HEAD);
             long catDefault = catCfg != null ? catCfg.getLong("default-price", globalDefault) : globalDefault;
 
             List<Product> products = new ArrayList<>();
@@ -104,22 +100,20 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
                 String displayName = mCfg != null
                     ? mCfg.getString("display-name", humanize(modelId))
                     : humanize(modelId);
-                Material iconMat = parseMaterial(mCfg != null ? mCfg.getString("icon") : null, Material.PAPER);
+                Material iconMat = parseMaterial(mCfg != null ? mCfg.getString("icon") : null, Material.PLAYER_HEAD);
+                String itemModel = "freeminecraftmodels:display/" + modelId.toLowerCase();
 
-                // Item-model key for shop icon (no _idle suffix for craftify items)
-                String itemModel = "freeminecraftmodels:display/" + modelId;
-
-                // Delivery: give PAPER with FMM PDC data (same as craftify output)
-                ItemStack giveItem = buildFmmItem(fmm, modelId, displayName);
+                List<String> commands = (mCfg != null && mCfg.contains("commands"))
+                    ? mCfg.getStringList("commands")
+                    : List.of("fmm spawn {player} " + modelId);
 
                 products.add(new Product.Builder()
                     .id("fmm_" + modelId)
-                    .type(Product.Type.ITEM)
+                    .type(Product.Type.COMMAND)
                     .name(color + displayName)
                     .lore(List.of(
                         "&7Source: &fFreeMinecraftModels",
                         "&7Model: &8" + modelId,
-                        "&7Type: &bProp / Furniture",
                         "",
                         "&6Price: &e" + price + " BellCoins",
                         "",
@@ -127,7 +121,7 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
                     ))
                     .price(price).enabled(true)
                     .iconMaterial(iconMat).iconItemModel(itemModel)
-                    .giveItem(giveItem)
+                    .commands(commands)
                     .currency(Currency.BELLCOINS).providerSource("fmm")
                     .build());
             }
@@ -146,72 +140,51 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
     }
 
     /**
-     * Creates a PAPER item with FMM's PDC tags (mirrors CraftifyCommand output).
-     * When given to player, they can place it to spawn the FMM model.
-     * Uses "model_id" PDC key from FMM's MetadataHandler.PLUGIN namespace.
+     * Tries FMM API (instance method on ModeledEntityManager),
+     * falls back to comprehensive filesystem scan.
      */
-    private ItemStack buildFmmItem(Plugin fmm, String modelId, String displayName) {
-        ItemStack item = new ItemStack(Material.PAPER, 1);
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null) return item;
-
-        // Display name
-        meta.displayName(net.kyori.adventure.text.Component.text(
-            net.kyori.adventure.text.format.NamedTextColor.GOLD + "✦ " + displayName)
-            .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
-
-        meta.lore(List.of(
-            net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
-                .legacyAmpersand().deserialize("&7FMM Model: &f" + modelId),
-            net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
-                .legacyAmpersand().deserialize("&7Place to spawn in world")
-        ));
-
-        // Set item model key (makes icon show 3D in GUI)
-        try {
-            NamespacedKey modelKey = NamespacedKey.fromString("freeminecraftmodels:display/" + modelId);
-            if (modelKey != null) meta.setItemModel(modelKey);
-        } catch (Throwable ignored) {}
-
-        // Set FMM PDC tag: model_id = modelId
-        // Uses FMM plugin's namespace (same as MetadataHandler.PLUGIN)
-        try {
-            NamespacedKey fmmKey = new NamespacedKey(fmm, "model_id");
-            meta.getPersistentDataContainer().set(fmmKey, PersistentDataType.STRING, modelId);
-        } catch (Throwable ignored) {}
-
-        // Set craftify_output PDC flag
-        try {
-            NamespacedKey craftifyKey = new NamespacedKey(fmm, "craftify_output");
-            meta.getPersistentDataContainer().set(craftifyKey, PersistentDataType.BYTE, (byte) 1);
-        } catch (Throwable ignored) {}
-
-        item.setItemMeta(meta);
-        return item;
-    }
-
     @SuppressWarnings("unchecked")
     private Set<String> getModelIds(Plugin fmm) {
-        // FileModelConverter.getConvertedFileModels() — used by CraftifyCommand
+        // Try API — getConvertedFileModels() on ModeledEntityManager instance
         try {
-            Class<?> cls = Class.forName(
-                "com.magmaguy.freeminecraftmodels.dataconverter.FileModelConverter");
+            Class<?> cls = Class.forName("com.magmaguy.freeminecraftmodels.api.ModeledEntityManager");
+            // Try as static method first
             Method m = cls.getMethod("getConvertedFileModels");
-            Map<String, ?> map = (Map<String, ?>) m.invoke(null);
-            if (map != null && !map.isEmpty()) {
-                Set<String> ids = new HashSet<>(map.keySet());
-                plugin.getLogger().info("[FMMProvider] API found " + ids.size() + " models.");
+            Object result = m.invoke(null);
+            if (result instanceof Map<?,?> map && !map.isEmpty()) {
+                Set<String> ids = new HashSet<>();
+                map.keySet().forEach(k -> ids.add(String.valueOf(k)));
+                plugin.getLogger().info("[FMMProvider] API (static) returned " + ids.size() + " models.");
                 return ids;
             }
-        } catch (Throwable e) {
-            plugin.getLogger().fine("[FMMProvider] API unavailable: " + e.getMessage());
-        }
+        } catch (Throwable ignored) {}
 
-        // Filesystem fallback
-        plugin.getLogger().info("[FMMProvider] Falling back to filesystem scan.");
+        // Try as instance method via plugin
+        try {
+            Class<?> cls = Class.forName("com.magmaguy.freeminecraftmodels.api.ModeledEntityManager");
+            Object instance = fmm; // try plugin as instance
+            Method m = cls.getMethod("getConvertedFileModels");
+            Object result = m.invoke(instance);
+            if (result instanceof Map<?,?> map && !map.isEmpty()) {
+                Set<String> ids = new HashSet<>();
+                map.keySet().forEach(k -> ids.add(String.valueOf(k)));
+                return ids;
+            }
+        } catch (Throwable ignored) {}
+
+        // Filesystem scan — comprehensive
+        plugin.getLogger().info("[FMMProvider] Using filesystem scan for models.");
         return scanModels(fmm);
     }
 
+    /**
+     * Comprehensive scan: finds model IDs from both file and directory layouts.
+     *
+     * Supports:
+     *   models/chair.bbmodel          → id "chair"
+     *   models/furniture/chair/       → id "furniture_chair" (dir with bbmodel inside)
+     *   models/furniture_chair.bbmodel → id "furniture_chair"
+     */
     private Set<String> scanModels(Plugin fmm) {
         Set<String> ids = new LinkedHashSet<>();
         File modelsDir = new File(fmm.getDataFolder(), "models");
@@ -223,19 +196,27 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
     private void scanDir(File root, File current, Set<String> results) {
         File[] children = current.listFiles();
         if (children == null) return;
+
         for (File child : children) {
             if (child.isFile() && child.getName().endsWith(".bbmodel")) {
+                // .bbmodel file → model ID = path from root, no extension
                 String relPath = root.toPath().relativize(child.toPath())
                     .toString().replace(File.separatorChar, '_')
                     .replaceAll("\\.bbmodel$", "");
                 results.add(relPath);
+
             } else if (child.isDirectory()) {
-                File[] bbFiles = child.listFiles(f -> f.getName().endsWith(".bbmodel"));
-                if (bbFiles != null && bbFiles.length > 0) {
+                // Check if this directory contains a .bbmodel at its root
+                File[] bmFiles = child.listFiles(f -> f.getName().endsWith(".bbmodel"));
+                boolean isModelDir = bmFiles != null && bmFiles.length > 0;
+
+                if (isModelDir) {
+                    // Directory is a model
                     String relPath = root.toPath().relativize(child.toPath())
                         .toString().replace(File.separatorChar, '_');
                     results.add(relPath);
                 } else {
+                    // Recurse into subdirectory (might contain models)
                     scanDir(root, child, results);
                 }
             }
@@ -246,21 +227,24 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
 # ============================================================
 #  BellMarket - FreeMinecraftModels Provider Configuration
 # ============================================================
-# FMM models are sold as craftify-output items (PAPER with PDC).
-# Players receive a physical item they can place in the world
-# to spawn the 3D model (furniture, props, etc.)
-#
-# Model IDs from FileModelConverter.getConvertedFileModels()
-# ============================================================
-
 enabled: true
 base-order: 400
 default-price: ${DEFAULT_PRICE}
 
+# Only include models starting with these prefixes (empty = all)
 include-prefixes: []
 excluded-models: []
 categories: {}
 model-prices: {}
+
+# Configure per model:
+# models:
+#   furniture_chair:
+#     display-name: "Wooden Chair"
+#     icon: OAK_SLAB
+#     show-in-shop: true
+#     commands:
+#       - "fmm spawn {player} furniture_chair"
 models: {}
 ${DETECTED}""";
 
@@ -274,12 +258,15 @@ ${DETECTED}""";
                 if (!modelIds.isEmpty()) {
                     sb.append("\n# ─── Detected models (").append(modelIds.size()).append(") ───\n");
                     new TreeSet<>(modelIds).forEach(id ->
-                        sb.append("# ").append(id).append(": ").append(defaultPrice).append("\n"));
+                        sb.append("# model-prices:\n#   ").append(id)
+                          .append(": ").append(defaultPrice).append("\n"));
                 }
                 Files.writeString(f.toPath(), TEMPLATE
                     .replace("${DEFAULT_PRICE}", String.valueOf(defaultPrice))
                     .replace("${DETECTED}", sb.toString()));
-            } catch (IOException e) { plugin.getLogger().warning("[FMMProvider] " + e.getMessage()); }
+            } catch (IOException e) {
+                plugin.getLogger().warning("[FMMProvider] " + e.getMessage());
+            }
         }
         return YamlConfiguration.loadConfiguration(f);
     }
@@ -288,16 +275,19 @@ ${DETECTED}""";
         int idx = id.indexOf('_');
         return idx > 0 ? id.substring(0, idx).toLowerCase() : "misc";
     }
+
     private static String humanize(String id) {
         return Arrays.stream(id.split("_"))
             .map(w -> w.isEmpty() ? w : Character.toUpperCase(w.charAt(0)) + w.substring(1))
             .reduce((a, b) -> a + " " + b).orElse(id);
     }
+
     private static Material parseMaterial(String n, Material fb) {
         if (n == null || n.isEmpty()) return fb;
         try { return Material.valueOf(n.toUpperCase()); }
         catch (IllegalArgumentException e) { return fb; }
     }
+
     private static String capitalize(String s) {
         if (s == null || s.isEmpty()) return s;
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
