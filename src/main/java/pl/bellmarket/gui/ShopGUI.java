@@ -162,8 +162,8 @@ public class ShopGUI implements Listener {
         inv.setItem(SLOT_BUY_CURRENCY, buildBuyCurrencyButton()); // ← BellCoins untouched
 
         // Show VIP Token balance button when inside VIP category
-        String vipCatId = plugin.getConfig().getString("shop.vip-category-id", "");
-        if (!vipCatId.isEmpty() && vipCatId.equals(categoryId)) {
+        String vipCatId = plugin.getConfig().getString("shop.vip-category-id", "01_vip");
+        if (vipCatId.equals(categoryId)) {
             inv.setItem(6, buildVipBalanceButton(player));
         }
 
@@ -257,7 +257,7 @@ public class ShopGUI implements Listener {
 
         // Slot 6: VIP category shortcut
         if (slot == MAIN_VIP) {
-            String vipCatId = plugin.getConfig().getString("shop.vip-category-id", "");
+            String vipCatId = plugin.getConfig().getString("shop.vip-category-id", "01_vip");
             if (vipCatId.isEmpty()) {
                 long vip = plugin.getVipTokens().getBalance(player.getUniqueId());
                 player.sendMessage(plugin.getLang().component("viptoken.balance-self", "amount", String.valueOf(vip)));

@@ -90,8 +90,14 @@ public class Product {
                 meta.displayName(colorize(name));
             }
             if (lore != null && !lore.isEmpty()) {
+                Currency cur = currency != null ? currency : Currency.BELLCOINS;
                 List<Component> resolved = new ArrayList<>();
-                for (String l : lore) resolved.add(colorize(l));
+                for (String l : lore) {
+                    String line = l.replace("{price}", String.valueOf(price))
+                                   .replace("{currency}", cur.getDisplayName())
+                                   .replace("{symbol}", cur.getSymbol());
+                    resolved.add(colorize(line));
+                }
                 meta.lore(resolved);
             }
             if (iconItemModel != null && !iconItemModel.isEmpty()) {

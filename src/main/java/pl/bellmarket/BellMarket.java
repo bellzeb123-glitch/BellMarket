@@ -50,6 +50,7 @@ public class BellMarket extends JavaPlugin {
         saveResource("lang/en.yml", false);
         saveResource("lang/pl.yml", false);
         saveResource("categories/00_tokens.yml", false);
+        saveResource("categories/01_vip.yml", false);
         saveResource("categories/07_mounts.yml", false);
         saveResource("categories/08_custom.yml", false);
 
