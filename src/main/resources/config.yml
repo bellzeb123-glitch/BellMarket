@@ -29,7 +29,8 @@ shop:
   # Button text for buying currency
   premium-button-text: "&eClick here to buy {currency}!"
   # Category ID for the VIP section (slot 6 in main menu)
-  vip-category-id: ""
+  # Must match filename in categories/ without .yml (e.g. "01_vip")
+  vip-category-id: "01_vip"
   # Featured category shortcut (slot 7 in main menu)
   featured-category-id: ""
 
