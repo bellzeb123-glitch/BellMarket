@@ -94,6 +94,35 @@ admin:
   vt-current-balance: "&8[&5VIP&8] &f{player}&7 ma obecnie &d{amount} &7VIP Tokenów."
   prices-back-to-admin: "&7← Powrót do Panelu Admina"
 
+prices:
+  title-tiers: "&8❀ &5&lEdytor Cen Skinów &7— Poziomy"
+  title-skins: "{color}❀ {tier} &7— {current}/{total}"
+  no-tiers: "&cNie wykryto poziomów SkinStudio."
+  no-skins: "&cBrak skinów w poziomie: &f{tier}"
+  prev-page: "&aPoprzednia strona"
+  next-page: "&aNastępna strona"
+  back-to-tiers: "&cPowrót do poziomów"
+  info-skins: "&7Skiny: &f{count}"
+  info-default: "&7Domyślna: &e{price} BC"
+  hint-set: "&eLewy klik: &fustaw cenę"
+  hint-reset: "&eShift+klik: &fresetuj"
+  tier-skins: "&7Skiny: &f{count}"
+  tier-default: "&7Domyślna: &e{price} BC"
+  tier-click: "&eKliknij &7aby edytować skiny"
+  skin-tier-label: "&7poziom"
+  skin-price: "&7Cena: &e{price} BellCoins"
+  skin-override: "&8(nadpisana)"
+  skin-default: "&8(domyślna z poziomu)"
+  prompt-setting: "&7Ustawianie ceny dla &f{skin}"
+  prompt-current: "&7Aktualna: &e{price} BellCoins"
+  prompt-click: "[ Kliknij aby wpisać nową cenę ]"
+  prompt-hint: "&8Wpisz &7reset &8aby usunąć nadpisanie. &7cancel &8aby anulować."
+  cancelled: "&7Anulowano."
+  override-cleared: "&aUsunięto nadpisanie ceny dla &f{skin}"
+  invalid-number: "&cNieprawidłowa liczba: &f{input}"
+  must-positive: "&cWartość musi być ≥ 0."
+  price-set: "&aUstawiono &f{skin} &ana &e{price} BellCoins"
+
 gui:
   currency-button: "&6✦ Kup {currency}"
   currency-button-lore:
@@ -106,8 +135,13 @@ gui:
   vip-button-lore:
     - "&7Twoje VIP Tokeny: &d{amount}"
     - ""
+    - "&7Ekskluzywne przedmioty dla członków VIP."
+    - "&eKliknij &7aby przeglądać produkty VIP"
+  vip-balance-name: "&d◈ Saldo VIP Tokenów"
+  vip-balance-lore:
+    - "&7Twoje VIP Tokeny: &d{amount}"
+    - ""
     - "&7Zdobywane przez subskrypcję / Tipply."
-    - "&eKliknij &7aby zobaczyć saldo"
   next-page: "&7Następna strona →"
   prev-page: "&7← Poprzednia strona"
   page-info: "&7Strona {current}/{total}"   # ← FIX: brakowało w sekcji gui
@@ -116,6 +150,8 @@ gui:
   your-balance: "&6Twoje Saldo"
   your-balance-lore:
     - "&7{symbol}{amount} {currency}"
+  featured-click: "&eKliknij &7aby otworzyć"
+  featured-locked: "&5Wymaga statusu VIP"
   cancel-button: "&cAnuluj"
   confirm-yes: "&aPotwierdzam"
   cancel: "&cAnuluj"

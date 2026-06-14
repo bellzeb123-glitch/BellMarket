@@ -1,13 +1,3 @@
-/*
- * BellMarket - PriceEditorGUI (FIXES4)
- *
- * Price input: replaced Anvil GUI with chat + suggestCommand.
- * - No materials needed
- * - No XP needed
- * - Clicking a skin sends a clickable message: "[→ Click to edit: 500]"
- * - Clicking that link opens chat with "500" pre-filled
- * - Player changes to new price, Enter → saved
- */
 package pl.bellmarket.gui;
 
 import io.papermc.paper.event.player.AsyncChatEvent;
@@ -71,12 +61,14 @@ public class PriceEditorGUI implements Listener {
 
     public PriceEditorGUI(BellMarket plugin) { this.plugin = plugin; }
 
+    private String lang(String key, Object... args) { return plugin.getLang().getRaw(key, args); }
+
     // ─── Entry points ─────────────────────────────────────────────────────
     public void openTierList(Player player) {
         Map<String, TierMeta> tiers = scanTiers();
-        if (tiers.isEmpty()) { player.sendMessage(colorize("&cNo SkinStudio tiers detected.")); return; }
+        if (tiers.isEmpty()) { player.sendMessage(plugin.getLang().component("prices.no-tiers")); return; }
         Inventory inv = Bukkit.createInventory(new Holder("tiers",null,0), SIZE_TIERS,
-            colorize("&8❀ &5&lEdit Skin Prices &7— Tiers"));
+            colorize(lang("prices.title-tiers")));
         int slot = 10;
         for (Map.Entry<String, TierMeta> e : tiers.entrySet()) {
             if (slot >= SIZE_TIERS-1) break;
@@ -84,31 +76,34 @@ public class PriceEditorGUI implements Listener {
             slot++; if (slot % 9 == 8) slot += 2;
         }
         fillBackground(inv);
-        // Przycisk powrotu do BM Admin (ostatni slot)
         inv.setItem(SIZE_TIERS-1, simple(Material.ARROW,
-            plugin.getLang().getRaw("admin.prices-back-to-admin")));
+            lang("admin.prices-back-to-admin")));
         player.openInventory(inv);
     }
 
     public void openSkinList(Player player, String tier, int page) {
         List<SkinEntry> skins = scanSkinsOfTier(tier);
-        if (skins.isEmpty()) { player.sendMessage(colorize("&cNo skins in tier: &f"+tier)); return; }
+        if (skins.isEmpty()) { player.sendMessage(plugin.getLang().component("prices.no-skins", "tier", tier)); return; }
         skins.sort(Comparator.comparing(SkinEntry::key));
         int total = (skins.size()+SKINS_PER_PAGE-1)/SKINS_PER_PAGE;
         page = Math.max(0, Math.min(page, total-1));
         TierMeta meta = scanTiers().getOrDefault(tier, new TierMeta(capitalize(tier),"&7",Material.LIGHT_GRAY_STAINED_GLASS_PANE,500));
 
         Inventory inv = Bukkit.createInventory(new Holder("skins",tier,page), SIZE_SKINS,
-            colorize(meta.color()+"❀ "+meta.displayName()+" &7— "+(page+1)+"/"+total));
+            colorize(lang("prices.title-skins", "color", meta.color(), "tier", meta.displayName(),
+                "current", String.valueOf(page+1), "total", String.valueOf(total))));
         int start = page*SKINS_PER_PAGE, end = Math.min(start+SKINS_PER_PAGE, skins.size());
         for (int i = start; i < end; i++) inv.setItem(i-start, makeSkinIcon(skins.get(i), meta));
         for (int i=45;i<54;i++) inv.setItem(i, makePane(" "));
-        if (page>0)        inv.setItem(SLOT_PREV, simple(Material.ARROW,"&aPrevious page"));
-        if (page<total-1)  inv.setItem(SLOT_NEXT, simple(Material.ARROW,"&aNext page"));
-        inv.setItem(SLOT_BACK, simple(Material.BARRIER,"&cBack to tiers"));
+        if (page>0)        inv.setItem(SLOT_PREV, simple(Material.ARROW, lang("prices.prev-page")));
+        if (page<total-1)  inv.setItem(SLOT_NEXT, simple(Material.ARROW, lang("prices.next-page")));
+        inv.setItem(SLOT_BACK, simple(Material.BARRIER, lang("prices.back-to-tiers")));
         inv.setItem(SLOT_INFO, simple(Material.PAPER, meta.color()+meta.displayName(),
-            "&7Skins: &f"+skins.size(), "&7Default: &e"+meta.defaultPrice()+" BC",
-            "", "&eLeft-click: &fset price", "&eShift-click: &freset"));
+            lang("prices.info-skins", "count", String.valueOf(skins.size())),
+            lang("prices.info-default", "price", String.valueOf(meta.defaultPrice())),
+            "",
+            lang("prices.hint-set"),
+            lang("prices.hint-reset")));
         player.openInventory(inv);
     }
 
@@ -122,7 +117,6 @@ public class PriceEditorGUI implements Listener {
         if (clicked == null || clicked.getType().isAir()) return;
         switch (h.view()) {
             case "tiers" -> {
-                // Przycisk powrotu do BM Admin
                 if (e.getSlot() == SIZE_TIERS-1) {
                     player.closeInventory();
                     plugin.getAdminGUI().openFor(player);
@@ -146,11 +140,10 @@ public class PriceEditorGUI implements Listener {
 
         if (click.isShiftClick()) {
             removeOverride(skinKey);
-            player.sendMessage(colorize("&aCleared override for &f"+skinKey));
+            player.sendMessage(plugin.getLang().component("prices.override-cleared", "skin", skinKey));
             plugin.reload(); openSkinList(player, h.tier(), h.page()); return;
         }
 
-        // Left click: find the skin entry and send suggestCommand prompt
         SkinEntry skin = scanSkinsOfTier(h.tier()).stream()
             .filter(s -> s.key().equals(skinKey)).findFirst().orElse(null);
         if (skin == null) return;
@@ -160,25 +153,19 @@ public class PriceEditorGUI implements Listener {
         sendPricePrompt(player, skin);
     }
 
-    /**
-     * Sends a clickable chat prompt. Clicking the link pre-fills chat with
-     * the current price — player edits and hits Enter.
-     * No materials, no XP, one click.
-     */
     private void sendPricePrompt(Player player, SkinEntry skin) {
         player.sendMessage(colorize("&8&m────────────────────────"));
-        player.sendMessage(colorize("&7Setting price for &f" + skin.displayName()));
-        player.sendMessage(colorize("&7Current: &e" + skin.currentPrice() + " BellCoins"));
+        player.sendMessage(plugin.getLang().component("prices.prompt-setting", "skin", skin.displayName()));
+        player.sendMessage(plugin.getLang().component("prices.prompt-current", "price", String.valueOf(skin.currentPrice())));
         player.sendMessage(
             LegacyComponentSerializer.legacyAmpersand().deserialize("&7→ ")
-                .append(Component.text("[ Click here to type new price ]")
+                .append(Component.text(lang("prices.prompt-click"))
                     .color(NamedTextColor.YELLOW)
                     .decoration(TextDecoration.BOLD, true)
                     .decoration(TextDecoration.ITALIC, false)
-                    // Opens chat with current price pre-filled for easy editing
                     .clickEvent(ClickEvent.suggestCommand(String.valueOf(skin.currentPrice()))))
         );
-        player.sendMessage(colorize("&8Or type &7reset &8to clear override. &7cancel &8to abort."));
+        player.sendMessage(plugin.getLang().component("prices.prompt-hint"));
         player.sendMessage(colorize("&8&m────────────────────────"));
     }
 
@@ -194,23 +181,24 @@ public class PriceEditorGUI implements Listener {
     }
 
     private void processChatInput(Player player, PendingInput p, String raw) {
-        if (raw.equalsIgnoreCase("cancel")) {
-            player.sendMessage(colorize("&7Cancelled.")); openSkinList(player,p.tier(),p.page()); return;
+        if (raw.equalsIgnoreCase("cancel") || raw.equalsIgnoreCase("anuluj")) {
+            player.sendMessage(plugin.getLang().component("prices.cancelled"));
+            openSkinList(player,p.tier(),p.page()); return;
         }
         if (raw.equalsIgnoreCase("reset")||raw.equalsIgnoreCase("remove")) {
             removeOverride(p.skinKey());
-            player.sendMessage(colorize("&aCleared override for &f"+p.skinKey()));
+            player.sendMessage(plugin.getLang().component("prices.override-cleared", "skin", p.skinKey()));
             plugin.reload(); openSkinList(player,p.tier(),p.page()); return;
         }
         long price;
         try { price = Long.parseLong(raw); }
         catch (NumberFormatException ex) {
-            player.sendMessage(colorize("&cInvalid number: &f"+raw));
+            player.sendMessage(plugin.getLang().component("prices.invalid-number", "input", raw));
             openSkinList(player,p.tier(),p.page()); return;
         }
-        if (price < 0) { player.sendMessage(colorize("&cMust be ≥ 0.")); openSkinList(player,p.tier(),p.page()); return; }
+        if (price < 0) { player.sendMessage(plugin.getLang().component("prices.must-positive")); openSkinList(player,p.tier(),p.page()); return; }
         setOverride(p.skinKey(), price);
-        player.sendMessage(colorize("&aSet &f"+p.skinKey()+" &ato &e"+price+" BellCoins"));
+        player.sendMessage(plugin.getLang().component("prices.price-set", "skin", p.skinKey(), "price", String.valueOf(price)));
         plugin.reload(); openSkinList(player,p.tier(),p.page());
     }
 
@@ -290,14 +278,20 @@ public class PriceEditorGUI implements Listener {
     // ─── Icon builders ────────────────────────────────────────────────────
     private ItemStack makeTierIcon(String tier, TierMeta m) {
         return simple(m.icon(), m.color()+"✦ "+m.displayName(),
-            "&7Skins: &f"+countInTier(tier), "&7Default: &e"+m.defaultPrice()+" BC","","&eClick &7to edit skins","&8tier:"+tier);
+            lang("prices.tier-skins", "count", String.valueOf(countInTier(tier))),
+            lang("prices.tier-default", "price", String.valueOf(m.defaultPrice())),
+            "",
+            lang("prices.tier-click"),
+            "&8tier:"+tier);
     }
     private ItemStack makeSkinIcon(SkinEntry s, TierMeta tm) {
         List<String> lore = new ArrayList<>(List.of(
-            tm.color()+tm.displayName()+" &7tier",
-            "&7Price: &e"+s.currentPrice()+" BellCoins",
-            s.isOverridden()?"&8(override)":"&8(tier default)",
-            "","&eLeft-click: &fset","" + (s.isOverridden()?"&eShift-click: &freset":""),
+            tm.color()+tm.displayName()+" " + lang("prices.skin-tier-label"),
+            lang("prices.skin-price", "price", String.valueOf(s.currentPrice())),
+            s.isOverridden() ? lang("prices.skin-override") : lang("prices.skin-default"),
+            "",
+            lang("prices.hint-set"),
+            s.isOverridden() ? lang("prices.hint-reset") : "",
             "&8skin:"+s.key()));
         ItemStack item = new ItemStack(s.material());
         ItemMeta meta = item.getItemMeta();

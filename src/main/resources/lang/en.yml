@@ -94,6 +94,35 @@ admin:
   vt-current-balance: "&8[&5VIP&8] &f{player}&7 currently has &d{amount} &7VIP Tokens."
   prices-back-to-admin: "&7← Back to Admin Panel"
 
+prices:
+  title-tiers: "&8❀ &5&lEdit Skin Prices &7— Tiers"
+  title-skins: "{color}❀ {tier} &7— {current}/{total}"
+  no-tiers: "&cNo SkinStudio tiers detected."
+  no-skins: "&cNo skins in tier: &f{tier}"
+  prev-page: "&aPrevious page"
+  next-page: "&aNext page"
+  back-to-tiers: "&cBack to tiers"
+  info-skins: "&7Skins: &f{count}"
+  info-default: "&7Default: &e{price} BC"
+  hint-set: "&eLeft-click: &fset price"
+  hint-reset: "&eShift-click: &freset"
+  tier-skins: "&7Skins: &f{count}"
+  tier-default: "&7Default: &e{price} BC"
+  tier-click: "&eClick &7to edit skins"
+  skin-tier-label: "&7tier"
+  skin-price: "&7Price: &e{price} BellCoins"
+  skin-override: "&8(override)"
+  skin-default: "&8(tier default)"
+  prompt-setting: "&7Setting price for &f{skin}"
+  prompt-current: "&7Current: &e{price} BellCoins"
+  prompt-click: "[ Click here to type new price ]"
+  prompt-hint: "&8Or type &7reset &8to clear override. &7cancel &8to abort."
+  cancelled: "&7Cancelled."
+  override-cleared: "&aCleared override for &f{skin}"
+  invalid-number: "&cInvalid number: &f{input}"
+  must-positive: "&cMust be ≥ 0."
+  price-set: "&aSet &f{skin} &ato &e{price} BellCoins"
+
 gui:
   currency-button: "&6✦ Buy {currency}"
   currency-button-lore:
@@ -106,8 +135,13 @@ gui:
   vip-button-lore:
     - "&7Your VIP Tokens: &d{amount}"
     - ""
+    - "&7Exclusive items for VIP members."
+    - "&eClick &7to browse VIP products"
+  vip-balance-name: "&d◈ VIP Token Balance"
+  vip-balance-lore:
+    - "&7Your VIP Tokens: &d{amount}"
+    - ""
     - "&7Earned via subscription / Tipply."
-    - "&eClick &7to view balance"
   next-page: "&7Next Page →"
   prev-page: "&7← Previous Page"
   page-info: "&7Page {current}/{total}"   # ← FIX: was missing from gui section
@@ -116,6 +150,8 @@ gui:
   your-balance: "&6Your Balance"
   your-balance-lore:
     - "&7{symbol}{amount} {currency}"
+  featured-click: "&eClick &7to open"
+  featured-locked: "&5VIP Access Required"
   cancel-button: "&cCancel"
   confirm-yes: "&aConfirm"
   cancel: "&cCancel"

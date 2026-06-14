@@ -28,6 +28,10 @@ shop:
   premium-url: "https://your-store.tebex.io"
   # Button text for buying currency
   premium-button-text: "&eClick here to buy {currency}!"
+  # Category ID for the VIP section (slot 6 in main menu)
+  vip-category-id: ""
+  # Featured category shortcut (slot 7 in main menu)
+  featured-category-id: ""
 
 # Database settings
 database:

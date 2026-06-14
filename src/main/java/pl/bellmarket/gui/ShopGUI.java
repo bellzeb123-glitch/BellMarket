@@ -133,8 +133,8 @@ public class ShopGUI implements Listener {
         if (meta != null) {
             meta.displayName(colorize(cat.getName()));
             meta.lore(List.of(canEnter
-                ? colorize("&eClick &7to open")
-                : colorize("&5VIP Access Required")));
+                ? colorize(plugin.getLang().getRaw("gui.featured-click"))
+                : colorize(plugin.getLang().getRaw("gui.featured-locked"))));
             icon.setItemMeta(meta);
         }
         inv.setItem(MAIN_FEATURED, icon);
@@ -161,10 +161,16 @@ public class ShopGUI implements Listener {
         inv.setItem(SLOT_BALANCE, buildBalanceButton(player));
         inv.setItem(SLOT_BUY_CURRENCY, buildBuyCurrencyButton()); // ← BellCoins untouched
 
+        // Show VIP Token balance button when inside VIP category
+        String vipCatId = plugin.getConfig().getString("shop.vip-category-id", "");
+        if (!vipCatId.isEmpty() && vipCatId.equals(categoryId)) {
+            inv.setItem(6, buildVipBalanceButton(player));
+        }
+
         ItemStack catLabel = new ItemStack(category.getIconMaterial());
         ItemMeta catMeta = catLabel.getItemMeta();
         catMeta.displayName(colorize(category.getName()));
-        catMeta.lore(List.of(colorize("&7Page &f" + (page + 1))));
+        catMeta.lore(List.of(colorize(plugin.getLang().getRaw("gui.page-info", "current", String.valueOf(page + 1), "total", ""))));
         catLabel.setItemMeta(catMeta);
         inv.setItem(13, catLabel);
 
@@ -249,11 +255,24 @@ public class ShopGUI implements Listener {
         // Slot 8: BellCoins URL — preserved
         if (slot == MAIN_BUY_CURRENCY) { sendPremiumUrl(player); return; }
 
-        // Slot 6: VIP Token balance info
+        // Slot 6: VIP category shortcut
         if (slot == MAIN_VIP) {
-            long vip = plugin.getVipTokens().getBalance(player.getUniqueId());
-            player.sendMessage(plugin.getLang().component("viptoken.balance-self", "amount", String.valueOf(vip)));
+            String vipCatId = plugin.getConfig().getString("shop.vip-category-id", "");
+            if (vipCatId.isEmpty()) {
+                long vip = plugin.getVipTokens().getBalance(player.getUniqueId());
+                player.sendMessage(plugin.getLang().component("viptoken.balance-self", "amount", String.valueOf(vip)));
+                playSound(player, "navigate", Sound.UI_BUTTON_CLICK);
+                return;
+            }
+            Category vipCat = plugin.getCategories().getCategory(vipCatId);
+            if (vipCat == null) return;
+            if (!plugin.getCategories().canSee(player, vipCat)) {
+                player.sendMessage(plugin.getLang().component("shop.vip-required"));
+                playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
+                return;
+            }
             playSound(player, "navigate", Sound.UI_BUTTON_CLICK);
+            openCategory(player, vipCat.getId(), 0);
             return;
         }
 
@@ -345,6 +364,17 @@ public class ShopGUI implements Listener {
         meta.displayName(colorize(plugin.getLang().getRaw("gui.vip-button")));
         List<Component> lore = new ArrayList<>();
         for (String l : plugin.getLang().getList("gui.vip-button-lore", "amount", String.valueOf(vip)))
+            lore.add(colorize(l));
+        meta.lore(lore); item.setItemMeta(meta); return item;
+    }
+
+    private ItemStack buildVipBalanceButton(Player player) {
+        long vip = plugin.getVipTokens().getBalance(player.getUniqueId());
+        ItemStack item = new ItemStack(Material.AMETHYST_SHARD);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(colorize(plugin.getLang().getRaw("gui.vip-balance-name")));
+        List<Component> lore = new ArrayList<>();
+        for (String l : plugin.getLang().getList("gui.vip-balance-lore", "amount", String.valueOf(vip)))
             lore.add(colorize(l));
         meta.lore(lore); item.setItemMeta(meta); return item;
     }
