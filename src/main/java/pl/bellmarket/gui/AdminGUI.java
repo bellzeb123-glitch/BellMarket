@@ -6,6 +6,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Sound;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -18,6 +19,7 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import pl.bellmarket.BellMarket;
+import pl.bellmarket.command.BellMarketCommand;
 
 import java.util.*;
 
@@ -41,47 +43,58 @@ public class AdminGUI implements Listener {
 
     public void openFor(Player admin) {
         AdminHolder holder = new AdminHolder();
-        Inventory inv = Bukkit.createInventory(holder, 27,
-            colorize("&8⚙ &cBellMarket Admin &8⚙"));
-        holder.setInventory(inv);
+        var lang = plugin.getLang();
 
-        // Fill background
-        fill(inv, 27);
+        // Powiększony GUI: 36 slotów (4 rzędy) zamiast 27 (3 rzędy)
+        Inventory inv = Bukkit.createInventory(holder, 36,
+            colorize(lang.getRaw("admin.gui-title")));
+        holder.setInventory(inv);
+        fill(inv, 36);
 
         // Stats
         int totalPlayers = plugin.getCurrency().getTopList(Integer.MAX_VALUE).size();
         inv.setItem(4, makeItem(Material.BOOK,
-            "&6Shop Statistics",
+            lang.getRaw("admin.gui-stats-name"),
             List.of(
-                "&7Categories: &f" + plugin.getCategories().getCategories().size(),
-                "&7Players with balance: &f" + totalPlayers,
-                "&7Currency: &f" + plugin.getLang().getCurrencyName()
+                lang.getRaw("admin.gui-stats-categories", "count",
+                    String.valueOf(plugin.getCategories().getCategories().size())),
+                lang.getRaw("admin.gui-stats-players", "count",
+                    String.valueOf(totalPlayers)),
+                lang.getRaw("admin.gui-stats-currency", "currency",
+                    lang.getCurrencyName())
             )));
 
-        // Give coins button
+        // Give / Take / Set / Top / Reload
         inv.setItem(10, makeItem(Material.EMERALD,
-            "&aGive Coins",
-            List.of("&7Give coins to an online player.", "", "&eLeft-click &7to use")));
-
-        // Take coins button
+            lang.getRaw("admin.gui-give-name"),
+            List.of(lang.getRaw("admin.gui-give-lore"), "", lang.getRaw("admin.gui-click-to-use"))));
         inv.setItem(12, makeItem(Material.REDSTONE,
-            "&cTake Coins",
-            List.of("&7Take coins from an online player.", "", "&eLeft-click &7to use")));
-
-        // Set coins button
+            lang.getRaw("admin.gui-take-name"),
+            List.of(lang.getRaw("admin.gui-take-lore"), "", lang.getRaw("admin.gui-click-to-use"))));
         inv.setItem(14, makeItem(Material.GOLD_INGOT,
-            "&6Set Coins",
-            List.of("&7Set exact balance for a player.", "", "&eLeft-click &7to use")));
-
-        // Top list button
+            lang.getRaw("admin.gui-set-name"),
+            List.of(lang.getRaw("admin.gui-set-lore"), "", lang.getRaw("admin.gui-click-to-use"))));
         inv.setItem(16, makeItem(Material.GOLDEN_APPLE,
-            "&eTop Players",
-            List.of("&7View top 10 players by balance.", "", "&eLeft-click &7to view")));
-
-        // Reload button
+            lang.getRaw("admin.gui-top-name"),
+            List.of(lang.getRaw("admin.gui-top-lore"), "", lang.getRaw("admin.gui-click-to-view"))));
         inv.setItem(22, makeItem(Material.COMMAND_BLOCK,
-            "&bReload Config",
-            List.of("&7Reload all categories and config.", "", "&eLeft-click &7to reload")));
+            lang.getRaw("admin.gui-reload-name"),
+            List.of(lang.getRaw("admin.gui-reload-lore"), "", lang.getRaw("admin.gui-click-to-reload"))));
+
+        // ── NOWE: Edytor Cen (slot 28) ──
+        inv.setItem(28, makeItem(Material.PAPER,
+            lang.getRaw("admin.gui-prices-name"),
+            List.of(lang.getRaw("admin.gui-prices-lore"), "", lang.getRaw("admin.gui-click-to-use"))));
+
+        // ── NOWE: Zmiana języka (slot 30) ──
+        String currentLang = plugin.getConfig().getString("language", "en").toUpperCase();
+        inv.setItem(30, makeItem(Material.WRITABLE_BOOK,
+            lang.getRaw("admin.gui-lang-name"),
+            List.of(
+                lang.getRaw("admin.gui-lang-current", "lang", currentLang),
+                "",
+                lang.getRaw("admin.gui-lang-hint")
+            )));
 
         admin.openInventory(inv);
         admin.sendMessage(plugin.getLang().component("admin.panel-opened"));
@@ -95,7 +108,7 @@ public class AdminGUI implements Listener {
         event.setCancelled(true);
 
         int slot = event.getRawSlot();
-        if (slot < 0 || slot >= 27) return;
+        if (slot < 0 || slot >= 36) return;
 
         switch (slot) {
             case 10 -> promptInput(player, "give");
@@ -106,6 +119,22 @@ public class AdminGUI implements Listener {
                 plugin.reload();
                 player.sendMessage(plugin.getLang().component("admin.reloaded"));
                 player.closeInventory();
+            }
+            case 28 -> {
+                // Edytor Cen — otwórz PriceEditorGUI z BellMarketCommand
+                player.closeInventory();
+                PluginCommand cmd = plugin.getCommand("bellmarket");
+                if (cmd != null && cmd.getExecutor() instanceof BellMarketCommand bmc) {
+                    bmc.getPriceEditor().openTierList(player);
+                }
+            }
+            case 30 -> {
+                // Zmiana języka — LPM=EN, PPM=PL
+                String newLang = event.isLeftClick() ? "en" : "pl";
+                plugin.getConfig().set("language", newLang);
+                plugin.saveConfig();
+                plugin.reload();
+                openFor(player); // reopen z nowym językiem
             }
         }
     }

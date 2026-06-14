@@ -11,7 +11,7 @@
 
     <groupId>pl.bellmarket</groupId>
     <artifactId>BellMarket</artifactId>
-    <version>1.0.0</version>
+    <version>1.26.1.2</version>
     <packaging>jar</packaging>
 
     <properties>

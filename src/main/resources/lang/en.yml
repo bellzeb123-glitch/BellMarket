@@ -49,6 +49,30 @@ admin:
   purchase-log: "[BellMarket] {player} bought {product} for {price} {currency}"
   language-switched: '&8[&6BellMarket&8] &aLanguage switched to: &f{lang}'
   language-current:  '&8[&6BellMarket&8] &7Current language: &f{lang}'
+  # ── Admin GUI ──
+  gui-title: "&8⚙ &cBellMarket Admin &8⚙"
+  gui-stats-name: "&6Shop Statistics"
+  gui-stats-categories: "&7Categories: &f{count}"
+  gui-stats-players: "&7Players with balance: &f{count}"
+  gui-stats-currency: "&7Currency: &f{currency}"
+  gui-give-name: "&aGive Coins"
+  gui-give-lore: "&7Give coins to an online player."
+  gui-take-name: "&cTake Coins"
+  gui-take-lore: "&7Take coins from an online player."
+  gui-set-name: "&6Set Coins"
+  gui-set-lore: "&7Set exact balance for a player."
+  gui-top-name: "&eTop Players"
+  gui-top-lore: "&7View top 10 players by balance."
+  gui-reload-name: "&bReload Config"
+  gui-reload-lore: "&7Reload all categories and config."
+  gui-prices-name: "&dPrice Editor"
+  gui-prices-lore: "&7Edit skin prices in-game."
+  gui-lang-name: "&bLanguage / Jezyk"
+  gui-lang-current: "&7Current: &f{lang}"
+  gui-lang-hint: "&eLMB &7-> EN  |  &eRMB &7-> PL"
+  gui-click-to-use: "&eLeft-click &7to use"
+  gui-click-to-view: "&eLeft-click &7to view"
+  gui-click-to-reload: "&eLeft-click &7to reload"
 
 gui:
   currency-button: "&6✦ Buy {currency}"

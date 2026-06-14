@@ -6,10 +6,11 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import pl.bellmarket.BellMarket;
 
-import java.io.File;
-import java.util.HashMap;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 public class LangManager {
@@ -24,16 +25,68 @@ public class LangManager {
         reload();
     }
 
+    /**
+     * FIX: MERGE pattern (z language-system.md).
+     * Baza z JARa (wszystkie klucze) + nadpisanie customizacjami z dysku.
+     * Nowe klucze pojawiają się automatycznie. Zmiana języka działa globalnie.
+     */
     public void reload() {
         String language = plugin.getConfig().getString("language", "en");
-        File langFile = new File(plugin.getDataFolder(), "lang/" + language + ".yml");
-        if (!langFile.exists()) {
-            plugin.getLogger().warning("Language file not found: lang/" + language + ".yml, using en.yml");
-            langFile = new File(plugin.getDataFolder(), "lang/en.yml");
-        }
-        lang = YamlConfiguration.loadConfiguration(langFile);
+        lang = loadAndMerge(language);
         currencyName   = plugin.getConfig().getString("currency.name", "BellCoins");
         currencySymbol = plugin.getConfig().getString("currency.symbol", "✦");
+    }
+
+    // ── MERGE logic ─────────────────────────────────────────────────────
+
+    private FileConfiguration loadAndMerge(String langCode) {
+        String fileName = "lang/" + langCode + ".yml";
+        File diskFile = new File(plugin.getDataFolder(), fileName);
+
+        // 1. Baza z JARa — zawsze aktualna, wszystkie klucze
+        FileConfiguration base = loadFromJar(fileName);
+        if (base == null) {
+            plugin.getLogger().warning("Lang file not found in jar: " + fileName + ", falling back to en");
+            base = loadFromJar("lang/en.yml");
+        }
+        if (base == null) {
+            // Ostateczny fallback — plik z dysku
+            plugin.getLogger().severe("No lang files in jar! Loading from disk.");
+            return diskFile.exists()
+                ? YamlConfiguration.loadConfiguration(diskFile)
+                : new YamlConfiguration();
+        }
+
+        // 2. Nadpisz customizacjami admina z dysku (tylko istniejące klucze)
+        if (diskFile.exists()) {
+            FileConfiguration disk = YamlConfiguration.loadConfiguration(diskFile);
+            for (String key : disk.getKeys(true)) {
+                if (!disk.isConfigurationSection(key) && base.contains(key)) {
+                    base.set(key, disk.get(key));
+                }
+            }
+        }
+
+        // 3. Zapisz merged result na dysk — nowe klucze z jara trafiają na dysk
+        try {
+            diskFile.getParentFile().mkdirs();
+            base.save(diskFile);
+        } catch (IOException e) {
+            plugin.getLogger().log(Level.WARNING, "Could not save lang file: " + fileName, e);
+        }
+
+        return base;
+    }
+
+    private FileConfiguration loadFromJar(String fileName) {
+        try (InputStream stream = plugin.getResource(fileName)) {
+            if (stream == null) return null;
+            return YamlConfiguration.loadConfiguration(
+                new InputStreamReader(stream, StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "Error loading lang from jar: " + fileName, e);
+            return null;
+        }
     }
 
     /**

@@ -1,7 +1,7 @@
 name: BellMarket
 version: 1.26.1.2
 main: pl.bellmarket.BellMarket
-api-version: "26.1.2"
+api-version: '1.21'
 description: Universal shop plugin with auto-detection for SkinStudio, MythicMobs, EliteMobs and FMM
 authors: [Bellzeb]
 website: ''

@@ -49,6 +49,30 @@ admin:
   purchase-log: "[BellMarket] {player} kupił {product} za {price} {currency}"
   language-switched: '&8[&6BellMarket&8] &aJęzyk zmieniony na: &f{lang}'
   language-current:  '&8[&6BellMarket&8] &7Aktualny język: &f{lang}'
+  # ── Admin GUI ──
+  gui-title: "&8⚙ &cBellMarket Admin &8⚙"
+  gui-stats-name: "&6Statystyki Sklepu"
+  gui-stats-categories: "&7Kategorie: &f{count}"
+  gui-stats-players: "&7Graczy z saldem: &f{count}"
+  gui-stats-currency: "&7Waluta: &f{currency}"
+  gui-give-name: "&aDodaj Monety"
+  gui-give-lore: "&7Daj monety graczowi online."
+  gui-take-name: "&cZabierz Monety"
+  gui-take-lore: "&7Zabierz monety od gracza."
+  gui-set-name: "&6Ustaw Saldo"
+  gui-set-lore: "&7Ustaw dokładne saldo gracza."
+  gui-top-name: "&eRanking Graczy"
+  gui-top-lore: "&7Pokaż top 10 graczy wg salda."
+  gui-reload-name: "&bPrzeładuj Config"
+  gui-reload-lore: "&7Przeładuj kategorie i konfigurację."
+  gui-prices-name: "&dEdytor Cen"
+  gui-prices-lore: "&7Edytuj ceny skinów w grze."
+  gui-lang-name: "&bLanguage / Język"
+  gui-lang-current: "&7Aktualny: &f{lang}"
+  gui-lang-hint: "&eLPM &7-> EN  |  &ePPM &7-> PL"
+  gui-click-to-use: "&eKliknij &7aby użyć"
+  gui-click-to-view: "&eKliknij &7aby zobaczyć"
+  gui-click-to-reload: "&eKliknij &7aby przeładować"
 
 gui:
   currency-button: "&6✦ Kup {currency}"
