@@ -92,8 +92,10 @@ public class ShopGUI implements Listener {
     // ─── helper: categories shown in GRID (all minus the featured one) ────
     private List<Category> gridCategories() {
         String featuredId = plugin.getConfig().getString("shop.featured-category-id", "");
+        String vipCatId = plugin.getConfig().getString("shop.vip-category-id", "01_vip");
         return plugin.getCategories().getCategories().stream()
             .filter(c -> !c.getId().equals(featuredId))
+            .filter(c -> !c.getId().equals(vipCatId))
             .collect(Collectors.toList());
     }
 

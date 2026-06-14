@@ -72,7 +72,9 @@ public class PriceEditorGUI implements Listener {
     // ─── Entry points ─────────────────────────────────────────────────────
     public void openTierList(Player player) {
         Map<String, TierMeta> tiers = scanTiers();
-        List<Category> cats = plugin.getCategories().getCategories();
+        List<Category> cats = plugin.getCategories().getCategories().stream()
+            .filter(c -> !c.getId().startsWith("skinstudio_"))
+            .toList();
 
         if (tiers.isEmpty() && cats.isEmpty()) {
             player.sendMessage(plugin.getLang().component("prices.no-tiers"));
