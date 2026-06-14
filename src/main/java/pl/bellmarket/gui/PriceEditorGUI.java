@@ -69,8 +69,14 @@ public class PriceEditorGUI implements Listener {
 
     private String lang(String key, Object... args) { return plugin.getLang().getRaw(key, args); }
 
+    private static final int TIERS_PER_PAGE = 14, CATS_PER_PAGE = 7;
+    private static final int[] TIER_SLOTS = {10,11,12,13,14,15,16, 19,20,21,22,23,24,25};
+    private static final int[] CAT_SLOTS  = {37,38,39,40,41,42,43};
+
     // ─── Entry points ─────────────────────────────────────────────────────
-    public void openTierList(Player player) {
+    public void openTierList(Player player) { openTierList(player, 0); }
+
+    public void openTierList(Player player, int page) {
         Map<String, TierMeta> tiers = scanTiers();
         List<Category> cats = plugin.getCategories().getCategories().stream()
             .filter(c -> !c.getId().startsWith("skinstudio_"))
@@ -81,34 +87,42 @@ public class PriceEditorGUI implements Listener {
             return;
         }
 
-        Inventory inv = Bukkit.createInventory(new Holder("tiers", null, 0), SIZE_TIERS,
+        int tierPages = tiers.isEmpty() ? 0 : (tiers.size() + TIERS_PER_PAGE - 1) / TIERS_PER_PAGE;
+        int catPages  = cats.isEmpty()  ? 0 : (cats.size()  + CATS_PER_PAGE  - 1) / CATS_PER_PAGE;
+        int totalPages = Math.max(1, Math.max(tierPages, catPages));
+        page = Math.max(0, Math.min(page, totalPages - 1));
+
+        Inventory inv = Bukkit.createInventory(new Holder("tiers", null, page), SIZE_TIERS,
             colorize(lang("prices.title-tiers")));
 
-        // SkinStudio tiers — top row (slots 10-16)
+        // SkinStudio tiers — rows 1-2 (slots 10-16, 19-25)
+        inv.setItem(4, simple(Material.DIAMOND, lang("prices.section-skinstudio")));
         if (!tiers.isEmpty()) {
-            inv.setItem(4, simple(Material.DIAMOND, lang("prices.section-skinstudio")));
-            int slot = 10;
-            for (Map.Entry<String, TierMeta> e : tiers.entrySet()) {
-                if (slot >= 17) break;
-                inv.setItem(slot, makeTierIcon(e.getKey(), e.getValue()));
-                slot++;
+            List<Map.Entry<String, TierMeta>> tierList = new ArrayList<>(tiers.entrySet());
+            int tStart = page * TIERS_PER_PAGE;
+            int tEnd = Math.min(tStart + TIERS_PER_PAGE, tierList.size());
+            for (int i = tStart; i < tEnd; i++) {
+                Map.Entry<String, TierMeta> e = tierList.get(i);
+                inv.setItem(TIER_SLOTS[i - tStart], makeTierIcon(e.getKey(), e.getValue()));
             }
         }
 
-        // Category tabs — bottom row (slots 28-34)
+        // Category tabs — row 4 (slots 37-43)
+        inv.setItem(31, simple(Material.CHEST, lang("prices.section-categories")));
         if (!cats.isEmpty()) {
-            inv.setItem(22, simple(Material.CHEST, lang("prices.section-categories")));
-            int slot = 28;
-            for (Category cat : cats) {
-                if (slot >= 35) break;
+            int cStart = page * CATS_PER_PAGE;
+            int cEnd = Math.min(cStart + CATS_PER_PAGE, cats.size());
+            for (int i = cStart; i < cEnd; i++) {
+                Category cat = cats.get(i);
                 Currency catCurrency = detectCategoryCurrency(cat);
-                inv.setItem(slot, makeCategoryIcon(cat, catCurrency));
-                slot++;
+                inv.setItem(CAT_SLOTS[i - cStart], makeCategoryIcon(cat, catCurrency));
             }
         }
 
         fillBackground(inv);
-        inv.setItem(SIZE_TIERS - 9, simple(Material.ARROW, lang("admin.prices-back-to-admin")));
+        if (page > 0)              inv.setItem(45, simple(Material.ARROW, lang("prices.prev-page")));
+        if (page < totalPages - 1) inv.setItem(53, simple(Material.ARROW, lang("prices.next-page")));
+        inv.setItem(49, simple(Material.ARROW, lang("admin.prices-back-to-admin")));
         player.openInventory(inv);
     }
 
@@ -177,11 +191,13 @@ public class PriceEditorGUI implements Listener {
         if (clicked == null || clicked.getType().isAir()) return;
         switch (h.view()) {
             case "tiers" -> {
-                if (e.getSlot() == SIZE_TIERS - 9) {
+                if (e.getSlot() == 49) {
                     player.closeInventory();
                     plugin.getAdminGUI().openFor(player);
                     return;
                 }
+                if (e.getSlot() == 45 && h.page() > 0) { openTierList(player, h.page() - 1); return; }
+                if (e.getSlot() == 53) { openTierList(player, h.page() + 1); return; }
                 String t = extractTag(clicked,"tier:"); if(t!=null) { openSkinList(player,t,0); return; }
                 String c = extractTag(clicked,"cat:"); if(c!=null) { openProductList(player,c,0); return; }
             }
