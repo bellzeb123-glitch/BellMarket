@@ -83,7 +83,11 @@ public class PriceEditorGUI implements Listener {
             inv.setItem(slot, makeTierIcon(e.getKey(), e.getValue()));
             slot++; if (slot % 9 == 8) slot += 2;
         }
-        fillBackground(inv); player.openInventory(inv);
+        fillBackground(inv);
+        // Przycisk powrotu do BM Admin (ostatni slot)
+        inv.setItem(SIZE_TIERS-1, simple(Material.ARROW,
+            plugin.getLang().getRaw("admin.prices-back-to-admin")));
+        player.openInventory(inv);
     }
 
     public void openSkinList(Player player, String tier, int page) {
@@ -117,7 +121,15 @@ public class PriceEditorGUI implements Listener {
         ItemStack clicked = e.getCurrentItem();
         if (clicked == null || clicked.getType().isAir()) return;
         switch (h.view()) {
-            case "tiers" -> { String t = extractTag(clicked,"tier:"); if(t!=null) openSkinList(player,t,0); }
+            case "tiers" -> {
+                // Przycisk powrotu do BM Admin
+                if (e.getSlot() == SIZE_TIERS-1) {
+                    player.closeInventory();
+                    plugin.getAdminGUI().openFor(player);
+                    return;
+                }
+                String t = extractTag(clicked,"tier:"); if(t!=null) openSkinList(player,t,0);
+            }
             case "skins" -> handleSkinClick(player, h, e.getSlot(), e.getClick(), clicked);
         }
     }

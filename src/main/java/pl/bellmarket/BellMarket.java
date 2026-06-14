@@ -26,9 +26,6 @@ import pl.bellmarket.gui.ShopGUI;
 import pl.bellmarket.listener.AdminChatListener;
 import pl.bellmarket.listener.PlayerListener;
 import pl.bellmarket.model.Category;
-import pl.bellmarket.provider.EliteMobsProvider;
-import pl.bellmarket.provider.FreeMinecraftModelsProvider;
-import pl.bellmarket.provider.MythicMobsProvider;
 import pl.bellmarket.provider.ProductProviderRegistry;
 import pl.bellmarket.provider.SkinStudioProvider;
 
@@ -42,6 +39,7 @@ public class BellMarket extends JavaPlugin {
     private ShopGUI shopGUI;
     private VipTokenManager vipTokens;
     private ProductProviderRegistry providerRegistry;
+    private pl.bellmarket.gui.AdminGUI adminGUI;
 
     @Override
     public void onEnable() {
@@ -64,11 +62,9 @@ public class BellMarket extends JavaPlugin {
 
         // ── Built-in providers ──────────────────────────────────────────────
         providerRegistry.register(new SkinStudioProvider(this));
-        providerRegistry.register(new MythicMobsProvider(this));     // SESJA-3
-        providerRegistry.register(new EliteMobsProvider(this));      // SESJA-3
-        providerRegistry.register(new FreeMinecraftModelsProvider(this)); // SESJA-3
-        // Future: providerRegistry.register(new ItemsAdderProvider(this));
-        // Future: providerRegistry.register(new NexoProvider(this));
+        // Auto-generation for MythicMobs / EliteMobs / FMM disabled (broken icons/effects).
+        // ItemShop only auto-loads skins (SkinStudio), as requested.
+        // To re-enable, restore the imports and register the providers here.
 
         BellMarketAPI.init(this, providerRegistry);
 
@@ -78,6 +74,7 @@ public class BellMarket extends JavaPlugin {
 
         // ── Commands ────────────────────────────────────────────────────────
         BellMarketCommand bmCmd = new BellMarketCommand(this);
+        this.adminGUI = bmCmd.getAdminGUI();
         PluginCommand bellmarketCmd = getCommand("bellmarket");
         if (bellmarketCmd != null) bellmarketCmd.setExecutor(bmCmd);
 
@@ -148,4 +145,5 @@ public class BellMarket extends JavaPlugin {
     public ShopGUI getShopGUI()                     { return shopGUI; }
     public VipTokenManager getVipTokens()           { return vipTokens; }
     public ProductProviderRegistry getProviderRegistry() { return providerRegistry; }
+    public pl.bellmarket.gui.AdminGUI getAdminGUI()       { return adminGUI; }
 }

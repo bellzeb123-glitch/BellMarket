@@ -81,12 +81,12 @@ public class AdminGUI implements Listener {
             lang.getRaw("admin.gui-reload-name"),
             List.of(lang.getRaw("admin.gui-reload-lore"), "", lang.getRaw("admin.gui-click-to-reload"))));
 
-        // ── NOWE: Edytor Cen (slot 28) ──
-        inv.setItem(28, makeItem(Material.PAPER,
+        // ── Edytor Cen (slot 28) — ikona DIAMENT ──
+        inv.setItem(28, makeItem(Material.DIAMOND,
             lang.getRaw("admin.gui-prices-name"),
             List.of(lang.getRaw("admin.gui-prices-lore"), "", lang.getRaw("admin.gui-click-to-use"))));
 
-        // ── NOWE: Zmiana języka (slot 30) ──
+        // ── Zmiana języka (slot 30) ──
         String currentLang = plugin.getConfig().getString("language", "en").toUpperCase();
         inv.setItem(30, makeItem(Material.WRITABLE_BOOK,
             lang.getRaw("admin.gui-lang-name"),
@@ -94,6 +94,26 @@ public class AdminGUI implements Listener {
                 lang.getRaw("admin.gui-lang-current", "lang", currentLang),
                 "",
                 lang.getRaw("admin.gui-lang-hint")
+            )));
+
+        // ── VIP Token: Give (slot 32) ──
+        inv.setItem(32, makeItem(Material.AMETHYST_SHARD,
+            lang.getRaw("admin.gui-vt-give-name"),
+            List.of(lang.getRaw("admin.gui-vt-give-lore"), "", lang.getRaw("admin.gui-click-to-use"))));
+
+        // ── VIP Token: Take (slot 33) ──
+        inv.setItem(33, makeItem(Material.AMETHYST_BLOCK,
+            lang.getRaw("admin.gui-vt-take-name"),
+            List.of(lang.getRaw("admin.gui-vt-take-lore"), "", lang.getRaw("admin.gui-click-to-use"))));
+
+        // ── VIP Token: Set/Check (slot 34) ──
+        inv.setItem(34, makeItem(Material.BUDDING_AMETHYST,
+            lang.getRaw("admin.gui-vt-set-name"),
+            List.of(
+                lang.getRaw("admin.gui-vt-set-lore"),
+                lang.getRaw("admin.gui-vt-check-lore"),
+                "",
+                lang.getRaw("admin.gui-vt-set-hint")
             )));
 
         admin.openInventory(inv);
@@ -136,6 +156,9 @@ public class AdminGUI implements Listener {
                 plugin.reload();
                 openFor(player); // reopen z nowym językiem
             }
+            case 32 -> promptInput(player, "vtgive");
+            case 33 -> promptInput(player, "vttake");
+            case 34 -> promptInput(player, "vtset");
         }
     }
 
@@ -156,13 +179,17 @@ public class AdminGUI implements Listener {
     private void promptInput(Player admin, String action) {
         admin.closeInventory();
         awaitingInput.put(admin.getUniqueId(), action + ":step1");
-        String actionName = switch (action) {
-            case "give" -> "give coins to";
-            case "take" -> "take coins from";
-            case "set"  -> "set balance for";
-            default     -> action;
+        // Komunikat zależny od języka — klucz admin.prompt-player-<action>
+        String key = switch (action) {
+            case "give"   -> "admin.prompt-player-give";
+            case "take"   -> "admin.prompt-player-take";
+            case "set"    -> "admin.prompt-player-set";
+            case "vtgive" -> "admin.prompt-player-vtgive";
+            case "vttake" -> "admin.prompt-player-vttake";
+            case "vtset"  -> "admin.prompt-player-vtset";
+            default       -> "admin.prompt-player-give";
         };
-        admin.sendMessage(colorize("&8[&cAdmin&8] &eEnter the player name to " + actionName + " (or &ccancel&e):"));
+        admin.sendMessage(plugin.getLang().component(key));
     }
 
     public boolean handleChatInput(Player admin, String message) {
@@ -170,15 +197,17 @@ public class AdminGUI implements Listener {
 
         String state = awaitingInput.get(admin.getUniqueId());
 
-        if (message.equalsIgnoreCase("cancel")) {
+        if (message.equalsIgnoreCase("cancel") || message.equalsIgnoreCase("anuluj")) {
             awaitingInput.remove(admin.getUniqueId());
-            admin.sendMessage(colorize("&8[&cAdmin&8] &7Cancelled."));
+            admin.sendMessage(plugin.getLang().component("admin.prompt-cancelled"));
             return true;
         }
 
         String[] parts = state.split(":", 2);
         String action = parts[0];
         String step   = parts[1];
+
+        boolean isVip = action.startsWith("vt");
 
         if (step.equals("step1")) {
             // Player name entered
@@ -189,8 +218,17 @@ public class AdminGUI implements Listener {
                 awaitingInput.remove(admin.getUniqueId());
                 return true;
             }
+
+            // VIP set/check — najpierw pokaż aktualny balans gracza
+            if (isVip) {
+                long bal = plugin.getVipTokens().getBalance(offline.getUniqueId());
+                admin.sendMessage(plugin.getLang().component("admin.vt-current-balance",
+                    "player", offline.getName(), "amount", String.valueOf(bal)));
+            }
+
             awaitingInput.put(admin.getUniqueId(), action + ":" + offline.getUniqueId());
-            admin.sendMessage(colorize("&8[&cAdmin&8] &eEnter the amount for &f" + offline.getName() + "&e:"));
+            admin.sendMessage(plugin.getLang().component("admin.prompt-amount",
+                "player", offline.getName()));
         } else {
             // Amount entered
             UUID targetUuid;
@@ -209,7 +247,9 @@ public class AdminGUI implements Listener {
             }
 
             String targetName = plugin.getCurrency().getPlayerName(targetUuid);
+
             switch (action) {
+                // ── BellCoins ──
                 case "give" -> {
                     plugin.getCurrency().addCoins(targetUuid, amount);
                     admin.sendMessage(plugin.getLang().component("currency.given",
@@ -230,6 +270,28 @@ public class AdminGUI implements Listener {
                     plugin.getCurrency().setBalance(targetUuid, amount);
                     admin.sendMessage(plugin.getLang().component("currency.set",
                         "player", targetName, "amount", plugin.getLang().formatAmount(amount)));
+                }
+                // ── VIP Tokens ──
+                case "vtgive" -> {
+                    long newBal = plugin.getVipTokens().addCoins(targetUuid, amount, "admin: " + admin.getName());
+                    admin.sendMessage(plugin.getLang().component("viptoken.given",
+                        "amount", String.valueOf(amount), "player", targetName, "balance", String.valueOf(newBal)));
+                    Player online = Bukkit.getPlayer(targetUuid);
+                    if (online != null) online.sendMessage(plugin.getLang().component("viptoken.received",
+                        "amount", String.valueOf(amount), "balance", String.valueOf(newBal)));
+                }
+                case "vttake" -> {
+                    long current = plugin.getVipTokens().getBalance(targetUuid);
+                    long toTake = Math.min(amount, current);
+                    plugin.getVipTokens().takeCoins(targetUuid, toTake, "admin: " + admin.getName());
+                    admin.sendMessage(plugin.getLang().component("viptoken.taken",
+                        "amount", String.valueOf(toTake), "player", targetName,
+                        "balance", String.valueOf(plugin.getVipTokens().getBalance(targetUuid))));
+                }
+                case "vtset" -> {
+                    plugin.getVipTokens().setBalance(targetUuid, amount, "admin set: " + admin.getName());
+                    admin.sendMessage(plugin.getLang().component("viptoken.set",
+                        "player", targetName, "amount", String.valueOf(amount)));
                 }
             }
             awaitingInput.remove(admin.getUniqueId());

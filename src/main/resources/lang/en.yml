@@ -73,6 +73,26 @@ admin:
   gui-click-to-use: "&eLeft-click &7to use"
   gui-click-to-view: "&eLeft-click &7to view"
   gui-click-to-reload: "&eLeft-click &7to reload"
+  # ── VIP Token admin buttons ──
+  gui-vt-give-name: "&dGive VIP Tokens"
+  gui-vt-give-lore: "&7Grant VIP Tokens to a player."
+  gui-vt-take-name: "&dTake VIP Tokens"
+  gui-vt-take-lore: "&7Remove VIP Tokens from a player."
+  gui-vt-set-name: "&dSet / Check VIP Tokens"
+  gui-vt-set-lore: "&7Set a player's VIP Token balance."
+  gui-vt-check-lore: "&7You'll see their current balance first."
+  gui-vt-set-hint: "&eLeft-click &7to use"
+  # ── Chat prompts (language-aware) ──
+  prompt-player-give: "&8[&cAdmin&8] &eEnter the player name to give coins to (or &ccancel&e):"
+  prompt-player-take: "&8[&cAdmin&8] &eEnter the player name to take coins from (or &ccancel&e):"
+  prompt-player-set: "&8[&cAdmin&8] &eEnter the player name to set balance for (or &ccancel&e):"
+  prompt-player-vtgive: "&8[&5VIP&8] &eEnter the player name to give VIP Tokens to (or &ccancel&e):"
+  prompt-player-vttake: "&8[&5VIP&8] &eEnter the player name to take VIP Tokens from (or &ccancel&e):"
+  prompt-player-vtset: "&8[&5VIP&8] &eEnter the player name to set VIP Tokens for (or &ccancel&e):"
+  prompt-amount: "&8[&cAdmin&8] &eEnter the amount for &f{player}&e:"
+  prompt-cancelled: "&8[&cAdmin&8] &7Cancelled."
+  vt-current-balance: "&8[&5VIP&8] &f{player}&7 currently has &d{amount} &7VIP Tokens."
+  prices-back-to-admin: "&7← Back to Admin Panel"
 
 gui:
   currency-button: "&6✦ Buy {currency}"
@@ -82,6 +102,12 @@ gui:
     - ""
     - "&eLeft-click &7to open link in chat"
   back-button: "&7← Back"
+  vip-button: "&d◈ VIP Tokens"
+  vip-button-lore:
+    - "&7Your VIP Tokens: &d{amount}"
+    - ""
+    - "&7Earned via subscription / Tipply."
+    - "&eClick &7to view balance"
   next-page: "&7Next Page →"
   prev-page: "&7← Previous Page"
   page-info: "&7Page {current}/{total}"   # ← FIX: was missing from gui section

@@ -78,6 +78,7 @@ public class ShopGUI implements Listener {
     private static final int MAIN_BALANCE      = 4;
     private static final int MAIN_BUY_CURRENCY = 8;
     private static final int MAIN_FEATURED     = 7;
+    private static final int MAIN_VIP          = 6;
 
     private final BellMarket plugin;
     private final PurchaseProcessor purchaseProcessor;
@@ -106,6 +107,7 @@ public class ShopGUI implements Listener {
 
         inv.setItem(MAIN_BALANCE, buildBalanceButton(player));
         inv.setItem(MAIN_BUY_CURRENCY, buildBuyCurrencyButton()); // ← BellCoins untouched
+        inv.setItem(MAIN_VIP, buildVipButton(player)); // ← VIP Token balance/info
         buildFeaturedSlot(player, inv);
 
         // Grid: featured category excluded (no duplicate)
@@ -247,6 +249,14 @@ public class ShopGUI implements Listener {
         // Slot 8: BellCoins URL — preserved
         if (slot == MAIN_BUY_CURRENCY) { sendPremiumUrl(player); return; }
 
+        // Slot 6: VIP Token balance info
+        if (slot == MAIN_VIP) {
+            long vip = plugin.getVipTokens().getBalance(player.getUniqueId());
+            player.sendMessage(plugin.getLang().component("viptoken.balance-self", "amount", String.valueOf(vip)));
+            playSound(player, "navigate", Sound.UI_BUTTON_CLICK);
+            return;
+        }
+
         // Grid slots 9-44: use FILTERED list (no featured duplicate)
         if (slot >= MAIN_CAT_START && slot <= MAIN_CAT_END) {
             List<Category> grid = gridCategories();
@@ -325,6 +335,17 @@ public class ShopGUI implements Listener {
         meta.displayName(colorize(plugin.getLang().getRaw("gui.currency-button", "currency", plugin.getLang().getCurrencyName())));
         List<Component> lore = new ArrayList<>();
         for (String l : plugin.getLang().getList("gui.currency-button-lore", "currency", plugin.getLang().getCurrencyName())) lore.add(colorize(l));
+        meta.lore(lore); item.setItemMeta(meta); return item;
+    }
+
+    private ItemStack buildVipButton(Player player) {
+        long vip = plugin.getVipTokens().getBalance(player.getUniqueId());
+        ItemStack item = new ItemStack(Material.AMETHYST_SHARD);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(colorize(plugin.getLang().getRaw("gui.vip-button")));
+        List<Component> lore = new ArrayList<>();
+        for (String l : plugin.getLang().getList("gui.vip-button-lore", "amount", String.valueOf(vip)))
+            lore.add(colorize(l));
         meta.lore(lore); item.setItemMeta(meta); return item;
     }
 

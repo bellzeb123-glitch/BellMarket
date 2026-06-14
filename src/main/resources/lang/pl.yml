@@ -73,6 +73,26 @@ admin:
   gui-click-to-use: "&eKliknij &7aby użyć"
   gui-click-to-view: "&eKliknij &7aby zobaczyć"
   gui-click-to-reload: "&eKliknij &7aby przeładować"
+  # ── Przyciski VIP Token (admin) ──
+  gui-vt-give-name: "&dDodaj VIP Tokeny"
+  gui-vt-give-lore: "&7Przyznaj graczowi VIP Tokeny."
+  gui-vt-take-name: "&dZabierz VIP Tokeny"
+  gui-vt-take-lore: "&7Zabierz graczowi VIP Tokeny."
+  gui-vt-set-name: "&dUstaw / Sprawdź VIP Tokeny"
+  gui-vt-set-lore: "&7Ustaw saldo VIP Tokenów gracza."
+  gui-vt-check-lore: "&7Najpierw zobaczysz jego aktualne saldo."
+  gui-vt-set-hint: "&eKliknij &7aby użyć"
+  # ── Komunikaty czatu (zależne od języka) ──
+  prompt-player-give: "&8[&cAdmin&8] &eWpisz nick gracza, któremu dodać monety (lub &canuluj&e):"
+  prompt-player-take: "&8[&cAdmin&8] &eWpisz nick gracza, któremu zabrać monety (lub &canuluj&e):"
+  prompt-player-set: "&8[&cAdmin&8] &eWpisz nick gracza, któremu ustawić saldo (lub &canuluj&e):"
+  prompt-player-vtgive: "&8[&5VIP&8] &eWpisz nick gracza, któremu dodać VIP Tokeny (lub &canuluj&e):"
+  prompt-player-vttake: "&8[&5VIP&8] &eWpisz nick gracza, któremu zabrać VIP Tokeny (lub &canuluj&e):"
+  prompt-player-vtset: "&8[&5VIP&8] &eWpisz nick gracza, któremu ustawić VIP Tokeny (lub &canuluj&e):"
+  prompt-amount: "&8[&cAdmin&8] &eWpisz ilość dla &f{player}&e:"
+  prompt-cancelled: "&8[&cAdmin&8] &7Anulowano."
+  vt-current-balance: "&8[&5VIP&8] &f{player}&7 ma obecnie &d{amount} &7VIP Tokenów."
+  prices-back-to-admin: "&7← Powrót do Panelu Admina"
 
 gui:
   currency-button: "&6✦ Kup {currency}"
@@ -82,6 +102,12 @@ gui:
     - ""
     - "&eLewy klik &7aby otworzyć link w czacie"
   back-button: "&7← Wróć"
+  vip-button: "&d◈ VIP Tokeny"
+  vip-button-lore:
+    - "&7Twoje VIP Tokeny: &d{amount}"
+    - ""
+    - "&7Zdobywane przez subskrypcję / Tipply."
+    - "&eKliknij &7aby zobaczyć saldo"
   next-page: "&7Następna strona →"
   prev-page: "&7← Poprzednia strona"
   page-info: "&7Strona {current}/{total}"   # ← FIX: brakowało w sekcji gui
