@@ -26,6 +26,9 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
 import pl.bellmarket.BellMarket;
+import pl.bellmarket.currency.Currency;
+import pl.bellmarket.model.Category;
+import pl.bellmarket.model.Product;
 
 import java.io.File;
 import java.io.IOException;
@@ -33,7 +36,7 @@ import java.util.*;
 
 public class PriceEditorGUI implements Listener {
 
-    private static final int SIZE_TIERS = 27, SIZE_SKINS = 54, SKINS_PER_PAGE = 45;
+    private static final int SIZE_TIERS = 54, SIZE_SKINS = 54, SKINS_PER_PAGE = 45;
     private static final int SLOT_BACK = 49, SLOT_PREV = 45, SLOT_NEXT = 53, SLOT_INFO = 47;
 
     private static final Map<String, Material> COLOR_TO_GLASS = new HashMap<>();
@@ -51,13 +54,16 @@ public class PriceEditorGUI implements Listener {
     private final BellMarket plugin;
     private final Map<UUID, PendingInput> awaiting = new HashMap<>();
 
-    private record PendingInput(String skinKey, String tier, int page) {}
-    private record Holder(String view, String tier, int page) implements InventoryHolder {
+    private record PendingInput(String key, String group, int page, boolean isCategory, String categoryId) {}
+    private record Holder(String view, String tier, int page, String categoryId) implements InventoryHolder {
+        Holder(String view, String tier, int page) { this(view, tier, page, null); }
         @Override public Inventory getInventory() { return null; }
     }
     private record TierMeta(String displayName, String color, Material icon, long defaultPrice) {}
     private record SkinEntry(String key, String tier, long currentPrice, boolean isOverridden,
                              Material material, String displayName, String itemModel) {}
+    private record ProductEntry(String productId, String categoryId, String name, long price,
+                                Material material, String itemModel, Currency currency) {}
 
     public PriceEditorGUI(BellMarket plugin) { this.plugin = plugin; }
 
@@ -66,18 +72,41 @@ public class PriceEditorGUI implements Listener {
     // ─── Entry points ─────────────────────────────────────────────────────
     public void openTierList(Player player) {
         Map<String, TierMeta> tiers = scanTiers();
-        if (tiers.isEmpty()) { player.sendMessage(plugin.getLang().component("prices.no-tiers")); return; }
-        Inventory inv = Bukkit.createInventory(new Holder("tiers",null,0), SIZE_TIERS,
-            colorize(lang("prices.title-tiers")));
-        int slot = 10;
-        for (Map.Entry<String, TierMeta> e : tiers.entrySet()) {
-            if (slot >= SIZE_TIERS-1) break;
-            inv.setItem(slot, makeTierIcon(e.getKey(), e.getValue()));
-            slot++; if (slot % 9 == 8) slot += 2;
+        List<Category> cats = plugin.getCategories().getCategories();
+
+        if (tiers.isEmpty() && cats.isEmpty()) {
+            player.sendMessage(plugin.getLang().component("prices.no-tiers"));
+            return;
         }
+
+        Inventory inv = Bukkit.createInventory(new Holder("tiers", null, 0), SIZE_TIERS,
+            colorize(lang("prices.title-tiers")));
+
+        // SkinStudio tiers — top row (slots 10-16)
+        if (!tiers.isEmpty()) {
+            inv.setItem(4, simple(Material.DIAMOND, lang("prices.section-skinstudio")));
+            int slot = 10;
+            for (Map.Entry<String, TierMeta> e : tiers.entrySet()) {
+                if (slot >= 17) break;
+                inv.setItem(slot, makeTierIcon(e.getKey(), e.getValue()));
+                slot++;
+            }
+        }
+
+        // Category tabs — bottom row (slots 28-34)
+        if (!cats.isEmpty()) {
+            inv.setItem(22, simple(Material.CHEST, lang("prices.section-categories")));
+            int slot = 28;
+            for (Category cat : cats) {
+                if (slot >= 35) break;
+                Currency catCurrency = detectCategoryCurrency(cat);
+                inv.setItem(slot, makeCategoryIcon(cat, catCurrency));
+                slot++;
+            }
+        }
+
         fillBackground(inv);
-        inv.setItem(SIZE_TIERS-1, simple(Material.ARROW,
-            lang("admin.prices-back-to-admin")));
+        inv.setItem(SIZE_TIERS - 9, simple(Material.ARROW, lang("admin.prices-back-to-admin")));
         player.openInventory(inv);
     }
 
@@ -107,6 +136,35 @@ public class PriceEditorGUI implements Listener {
         player.openInventory(inv);
     }
 
+    public void openProductList(Player player, String categoryId, int page) {
+        Category cat = plugin.getCategories().getCategory(categoryId);
+        if (cat == null) { player.sendMessage(plugin.getLang().component("prices.no-category", "category", categoryId)); return; }
+        List<ProductEntry> products = scanCategoryProducts(cat);
+        if (products.isEmpty()) { player.sendMessage(plugin.getLang().component("prices.no-products", "category", cat.getDisplayName())); return; }
+        products.sort(Comparator.comparing(ProductEntry::productId));
+
+        int total = (products.size()+SKINS_PER_PAGE-1)/SKINS_PER_PAGE;
+        page = Math.max(0, Math.min(page, total-1));
+        Currency catCurrency = detectCategoryCurrency(cat);
+        String currencyLabel = catCurrency.getDisplayName();
+
+        Inventory inv = Bukkit.createInventory(new Holder("products", null, page, categoryId), SIZE_SKINS,
+            colorize(lang("prices.title-products", "category", cat.getDisplayName(),
+                "current", String.valueOf(page+1), "total", String.valueOf(total))));
+        int start = page*SKINS_PER_PAGE, end = Math.min(start+SKINS_PER_PAGE, products.size());
+        for (int i = start; i < end; i++) inv.setItem(i-start, makeProductIcon(products.get(i)));
+        for (int i=45;i<54;i++) inv.setItem(i, makePane(" "));
+        if (page>0)        inv.setItem(SLOT_PREV, simple(Material.ARROW, lang("prices.prev-page")));
+        if (page<total-1)  inv.setItem(SLOT_NEXT, simple(Material.ARROW, lang("prices.next-page")));
+        inv.setItem(SLOT_BACK, simple(Material.BARRIER, lang("prices.back-to-tiers")));
+        inv.setItem(SLOT_INFO, simple(Material.PAPER, cat.getDisplayName(),
+            lang("prices.info-products", "count", String.valueOf(products.size())),
+            lang("prices.info-currency", "currency", currencyLabel),
+            "",
+            lang("prices.hint-set")));
+        player.openInventory(inv);
+    }
+
     // ─── Events ───────────────────────────────────────────────────────────
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onClick(InventoryClickEvent e) {
@@ -117,14 +175,16 @@ public class PriceEditorGUI implements Listener {
         if (clicked == null || clicked.getType().isAir()) return;
         switch (h.view()) {
             case "tiers" -> {
-                if (e.getSlot() == SIZE_TIERS-1) {
+                if (e.getSlot() == SIZE_TIERS - 9) {
                     player.closeInventory();
                     plugin.getAdminGUI().openFor(player);
                     return;
                 }
-                String t = extractTag(clicked,"tier:"); if(t!=null) openSkinList(player,t,0);
+                String t = extractTag(clicked,"tier:"); if(t!=null) { openSkinList(player,t,0); return; }
+                String c = extractTag(clicked,"cat:"); if(c!=null) { openProductList(player,c,0); return; }
             }
             case "skins" -> handleSkinClick(player, h, e.getSlot(), e.getClick(), clicked);
+            case "products" -> handleProductClick(player, h, e.getSlot(), e.getClick(), clicked);
         }
     }
 
@@ -148,22 +208,43 @@ public class PriceEditorGUI implements Listener {
             .filter(s -> s.key().equals(skinKey)).findFirst().orElse(null);
         if (skin == null) return;
 
-        awaiting.put(player.getUniqueId(), new PendingInput(skinKey, h.tier(), h.page()));
+        awaiting.put(player.getUniqueId(), new PendingInput(skinKey, h.tier(), h.page(), false, null));
         player.closeInventory();
-        sendPricePrompt(player, skin);
+        sendPricePrompt(player, skin.displayName(), skin.currentPrice(), Currency.BELLCOINS);
     }
 
-    private void sendPricePrompt(Player player, SkinEntry skin) {
+    private void handleProductClick(Player player, Holder h, int slot, ClickType click, ItemStack clicked) {
+        if (slot==SLOT_BACK) { openTierList(player); return; }
+        if (slot==SLOT_PREV) { openProductList(player,h.categoryId(),h.page()-1); return; }
+        if (slot==SLOT_NEXT) { openProductList(player,h.categoryId(),h.page()+1); return; }
+        if (slot>=45) return;
+        String productId = extractTag(clicked, "product:");
+        if (productId == null) return;
+
+        Category cat = plugin.getCategories().getCategory(h.categoryId());
+        if (cat == null) return;
+        ProductEntry product = scanCategoryProducts(cat).stream()
+            .filter(p -> p.productId().equals(productId)).findFirst().orElse(null);
+        if (product == null) return;
+
+        awaiting.put(player.getUniqueId(), new PendingInput(productId, null, h.page(), true, h.categoryId()));
+        player.closeInventory();
+        sendPricePrompt(player, product.name(), product.price(), product.currency());
+    }
+
+    private void sendPricePrompt(Player player, String displayName, long currentPrice, Currency currency) {
+        String currencyName = currency.getDisplayName();
         player.sendMessage(colorize("&8&m────────────────────────"));
-        player.sendMessage(plugin.getLang().component("prices.prompt-setting", "skin", skin.displayName()));
-        player.sendMessage(plugin.getLang().component("prices.prompt-current", "price", String.valueOf(skin.currentPrice())));
+        player.sendMessage(plugin.getLang().component("prices.prompt-setting", "skin", displayName));
+        player.sendMessage(plugin.getLang().component("prices.prompt-current-currency",
+            "price", String.valueOf(currentPrice), "currency", currencyName));
         player.sendMessage(
             LegacyComponentSerializer.legacyAmpersand().deserialize("&7→ ")
                 .append(Component.text(lang("prices.prompt-click"))
                     .color(NamedTextColor.YELLOW)
                     .decoration(TextDecoration.BOLD, true)
                     .decoration(TextDecoration.ITALIC, false)
-                    .clickEvent(ClickEvent.suggestCommand(String.valueOf(skin.currentPrice()))))
+                    .clickEvent(ClickEvent.suggestCommand(String.valueOf(currentPrice))))
         );
         player.sendMessage(plugin.getLang().component("prices.prompt-hint"));
         player.sendMessage(colorize("&8&m────────────────────────"));
@@ -183,28 +264,45 @@ public class PriceEditorGUI implements Listener {
     private void processChatInput(Player player, PendingInput p, String raw) {
         if (raw.equalsIgnoreCase("cancel") || raw.equalsIgnoreCase("anuluj")) {
             player.sendMessage(plugin.getLang().component("prices.cancelled"));
-            openSkinList(player,p.tier(),p.page()); return;
+            reopenList(player, p);
+            return;
         }
-        if (raw.equalsIgnoreCase("reset")||raw.equalsIgnoreCase("remove")) {
-            removeOverride(p.skinKey());
-            player.sendMessage(plugin.getLang().component("prices.override-cleared", "skin", p.skinKey()));
-            plugin.reload(); openSkinList(player,p.tier(),p.page()); return;
+        if (!p.isCategory() && (raw.equalsIgnoreCase("reset")||raw.equalsIgnoreCase("remove"))) {
+            removeOverride(p.key());
+            player.sendMessage(plugin.getLang().component("prices.override-cleared", "skin", p.key()));
+            plugin.reload(); reopenList(player, p); return;
         }
         long price;
         try { price = Long.parseLong(raw); }
         catch (NumberFormatException ex) {
             player.sendMessage(plugin.getLang().component("prices.invalid-number", "input", raw));
-            openSkinList(player,p.tier(),p.page()); return;
+            reopenList(player, p); return;
         }
-        if (price < 0) { player.sendMessage(plugin.getLang().component("prices.must-positive")); openSkinList(player,p.tier(),p.page()); return; }
-        setOverride(p.skinKey(), price);
-        player.sendMessage(plugin.getLang().component("prices.price-set", "skin", p.skinKey(), "price", String.valueOf(price)));
-        plugin.reload(); openSkinList(player,p.tier(),p.page());
+        if (price < 0) { player.sendMessage(plugin.getLang().component("prices.must-positive")); reopenList(player, p); return; }
+
+        if (p.isCategory()) {
+            setCategoryProductPrice(p.categoryId(), p.key(), price);
+            Currency cur = detectCurrencyForProduct(p.categoryId(), p.key());
+            player.sendMessage(plugin.getLang().component("prices.price-set-currency",
+                "skin", p.key(), "price", String.valueOf(price), "currency", cur.getDisplayName()));
+        } else {
+            setOverride(p.key(), price);
+            player.sendMessage(plugin.getLang().component("prices.price-set", "skin", p.key(), "price", String.valueOf(price)));
+        }
+        plugin.reload(); reopenList(player, p);
+    }
+
+    private void reopenList(Player player, PendingInput p) {
+        if (p.isCategory()) {
+            openProductList(player, p.categoryId(), p.page());
+        } else {
+            openSkinList(player, p.group(), p.page());
+        }
     }
 
     public boolean isAwaitingInput(Player player) { return awaiting.containsKey(player.getUniqueId()); }
 
-    // ─── Scanning ─────────────────────────────────────────────────────────
+    // ─── Scanning SkinStudio ──────────────────────────────────────────────
     private Map<String,TierMeta> scanTiers() {
         Map<String,TierMeta> out = new LinkedHashMap<>();
         ConfigurationSection skins = loadSkinStudioSkins(); if(skins==null) return out;
@@ -250,6 +348,38 @@ public class PriceEditorGUI implements Listener {
         return out;
     }
 
+    // ─── Scanning categories ──────────────────────────────────────────────
+    private List<ProductEntry> scanCategoryProducts(Category cat) {
+        List<ProductEntry> out = new ArrayList<>();
+        for (Product p : cat.getProducts()) {
+            out.add(new ProductEntry(
+                p.getId(), cat.getId(), p.getName(), p.getPrice(),
+                p.getIconMaterial() != null ? p.getIconMaterial() : Material.PAPER,
+                p.getIconItemModel(), p.getCurrency()
+            ));
+        }
+        return out;
+    }
+
+    private Currency detectCategoryCurrency(Category cat) {
+        for (Product p : cat.getProducts()) {
+            if (p.getCurrency() != null && p.getCurrency() != Currency.BELLCOINS) {
+                return p.getCurrency();
+            }
+        }
+        return Currency.BELLCOINS;
+    }
+
+    private Currency detectCurrencyForProduct(String categoryId, String productId) {
+        Category cat = plugin.getCategories().getCategory(categoryId);
+        if (cat == null) return Currency.BELLCOINS;
+        for (Product p : cat.getProducts()) {
+            if (p.getId().equals(productId)) return p.getCurrency();
+        }
+        return Currency.BELLCOINS;
+    }
+
+    // ─── File loaders ─────────────────────────────────────────────────────
     private ConfigurationSection loadSkinStudioSkins() {
         Plugin sk=plugin.getServer().getPluginManager().getPlugin("SkinStudio"); if(sk==null) return null;
         File f=new File(sk.getDataFolder(),"config.yml"); return f.exists()?YamlConfiguration.loadConfiguration(f).getConfigurationSection("skins"):null;
@@ -259,7 +389,7 @@ public class PriceEditorGUI implements Listener {
         return f.exists()?YamlConfiguration.loadConfiguration(f):new YamlConfiguration();
     }
 
-    // ─── Writing ──────────────────────────────────────────────────────────
+    // ─── Writing SkinStudio overrides ─────────────────────────────────────
     private void setOverride(String key, long price) {
         File f=new File(plugin.getDataFolder(),"providers/skinstudio.yml"); if(!f.exists()) return;
         FileConfiguration cfg=YamlConfiguration.loadConfiguration(f);
@@ -271,6 +401,16 @@ public class PriceEditorGUI implements Listener {
         FileConfiguration cfg=YamlConfiguration.loadConfiguration(f);
         ConfigurationSection p=cfg.getConfigurationSection("skin-prices"); if(p!=null){p.set(key,null);saveQ(cfg,f);}
     }
+
+    // ─── Writing category product prices ──────────────────────────────────
+    private void setCategoryProductPrice(String categoryId, String productId, long price) {
+        File f = new File(plugin.getDataFolder(), "categories/" + categoryId + ".yml");
+        if (!f.exists()) return;
+        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(f);
+        cfg.set("products." + productId + ".price", price);
+        saveQ(cfg, f);
+    }
+
     private void saveQ(FileConfiguration cfg, File f) {
         try{cfg.save(f);}catch(IOException e){plugin.getLogger().warning("[PriceEditor] Save: "+e.getMessage());}
     }
@@ -284,6 +424,17 @@ public class PriceEditorGUI implements Listener {
             lang("prices.tier-click"),
             "&8tier:"+tier);
     }
+
+    private ItemStack makeCategoryIcon(Category cat, Currency currency) {
+        int productCount = cat.getProducts().size();
+        return simple(cat.getIconMaterial(), cat.getDisplayName(),
+            lang("prices.cat-products", "count", String.valueOf(productCount)),
+            lang("prices.cat-currency", "currency", currency.getDisplayName()),
+            "",
+            lang("prices.cat-click"),
+            "&8cat:"+cat.getId());
+    }
+
     private ItemStack makeSkinIcon(SkinEntry s, TierMeta tm) {
         List<String> lore = new ArrayList<>(List.of(
             tm.color()+tm.displayName()+" " + lang("prices.skin-tier-label"),
@@ -303,6 +454,25 @@ public class PriceEditorGUI implements Listener {
         }
         return item;
     }
+
+    private ItemStack makeProductIcon(ProductEntry p) {
+        String currencyName = p.currency().getDisplayName();
+        List<String> lore = new ArrayList<>(List.of(
+            lang("prices.product-price", "price", String.valueOf(p.price()), "currency", currencyName),
+            "",
+            lang("prices.hint-set"),
+            "&8product:"+p.productId()));
+        ItemStack item = new ItemStack(p.material());
+        ItemMeta meta = item.getItemMeta();
+        if (meta!=null) {
+            meta.displayName(colorize(p.name()).decoration(TextDecoration.ITALIC,false));
+            meta.lore(lore.stream().map(l->colorize(l).decoration(TextDecoration.ITALIC,false)).toList());
+            if (p.itemModel()!=null) { try{NamespacedKey k=NamespacedKey.fromString(p.itemModel());if(k!=null)meta.setItemModel(k);}catch(Throwable ignore){} }
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
     private int countInTier(String tier) {
         ConfigurationSection s=loadSkinStudioSkins(); if(s==null) return 0;
         int c=0; for(String k:s.getKeys(false)) if(tier.equals(tierOf(k)))c++; return c;
