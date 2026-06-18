@@ -1,0 +1,56 @@
+# ============================================================
+#  BellMarket - SkinStudio Provider Configuration
+# ============================================================
+# This file is auto-created on first run. Edit freely — changes
+# apply on /bm reload (no restart needed).
+#
+# Pricing priority (highest → lowest):
+#   1. skin-prices.<skin-key>          (per-skin override)
+#   2. tiers.<tier-name>.default-price (per-tier default)
+#   3. default-price                   (global default below)
+# ============================================================
+
+# Global default price for any skin without a specific price
+default-price: 500
+
+
+# ─── Tier customisation (OPTIONAL) ───────────────────────────
+# A tier = the prefix BEFORE the first underscore in a skin key.
+# Example: "bronze_sword" → tier "bronze"
+#
+# If a tier is NOT listed below, the plugin auto-detects:
+#   color        ← extracted from the SkinStudio display-name
+#   icon         ← stained-glass pane matching the colour
+#   display-name ← Capitalize(tier-key)
+#   default-price← falls back to global default-price above
+#
+# To override any of these, add the tier here. Example:
+#
+# tiers:
+#   bronze:
+#     display-name: "Bronze"
+#     color: "&6"
+#     icon: ORANGE_STAINED_GLASS_PANE
+#     default-price: 300
+#
+#   ultimatium:
+#     display-name: "Ultimate"
+#     color: "&e"
+#     icon: YELLOW_STAINED_GLASS_PANE
+#     default-price: 2000
+# ─────────────────────────────────────────────────────────────
+
+tiers: {}
+
+
+# ─── Per-skin price overrides (HIGHEST priority) ─────────────
+# Use the exact skin key from your SkinStudio config.yml.
+# Example:
+#
+# skin-prices:
+#   bronze_sword: 250
+#   ultimatium_dragon_sword: 5000
+#   frost_palace_fire_sword: 1500
+# ─────────────────────────────────────────────────────────────
+
+skin-prices: {}

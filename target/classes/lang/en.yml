@@ -1,0 +1,196 @@
+# ================================================================
+#  BellMarket - English Language File
+# ================================================================
+
+prefix: "&8[&6BellMarket&8] &r"
+no-permission: "&cYou don't have permission to do this."
+player-not-found: "&cPlayer &e{player}&c not found."
+invalid-amount: "&cInvalid amount. Please enter a positive number."
+player-only: "&cThis command can only be used by players."
+
+currency:
+  balance: "&7Your balance: &6{symbol}{amount} {currency}"
+  balance-other: "&7Balance of &e{player}&7: &6{symbol}{amount} {currency}"
+  given: "&aGiven &6{symbol}{amount} {currency}&a to &e{player}&a."
+  taken: "&cTaken &6{symbol}{amount} {currency}&c from &e{player}&c."
+  set: "&aSet balance of &e{player}&a to &6{symbol}{amount} {currency}&a."
+  received: "&aYou received &6{symbol}{amount} {currency}&a!"
+  removed: "&cYou lost &6{symbol}{amount} {currency}&c."
+  not-enough: "&cYou don't have enough {currency}! You need &6{symbol}{required}&c but have &6{symbol}{balance}&c."
+  top-header: "&6&l=== Top {currency} Holders ==="
+  top-entry: "&7{rank}. &e{player}&7: &6{symbol}{amount}"
+
+shop:
+  opened: "&aOpening &6BellMarket&a..."
+  purchase-success: "&aPurchase successful! You bought &e{product}&a for &6{symbol}{price} {currency}&a."
+  purchase-failed: "&cPurchase failed. Please try again."
+  not-enough-currency: "&cYou need &6{symbol}{price} {currency}&c to buy this. Your balance: &6{symbol}{balance}&c."
+  buy-currency: "&eClick to visit the store and buy more {currency}!"
+  buy-currency-url: "&7Store: &b{url}"
+  item-given: "&aYou received: &e{item}&a!"
+  command-executed: "&aPurchase complete!"
+  category-back: "&7Click to go back"
+  page-next: "&7Next page →"
+  page-prev: "&7← Previous page"
+  page-info: "&7Page {current}/{total}"
+  out-of-stock: "&cThis item is currently unavailable."
+  confirm-title: "&8Confirm Purchase"
+  confirm-yes: "&aConfirm"
+  confirm-no: "&cCancel"
+  confirm-info: "&7Buy &e{product}&7 for &6{symbol}{price}?"
+  vip-required: "&cThis category requires &5VIP &cstatus. Contact staff or subscribe to gain access."
+
+admin:
+  reloaded: "&aBellMarket reloaded successfully."
+  panel-opened: "&aOpening admin panel..."
+  balance-set: "&aBalance updated."
+  coins-added: "&aCoins added successfully."
+  coins-removed: "&aCoins removed successfully."
+  purchase-log: "[BellMarket] {player} bought {product} for {price} {currency}"
+  language-switched: '&8[&6BellMarket&8] &aLanguage switched to: &f{lang}'
+  language-current:  '&8[&6BellMarket&8] &7Current language: &f{lang}'
+  # ── Admin GUI ──
+  gui-title: "&8⚙ &cBellMarket Admin &8⚙"
+  gui-stats-name: "&6Shop Statistics"
+  gui-stats-categories: "&7Categories: &f{count}"
+  gui-stats-players: "&7Players with balance: &f{count}"
+  gui-stats-currency: "&7Currency: &f{currency}"
+  gui-give-name: "&aGive Coins"
+  gui-give-lore: "&7Give coins to an online player."
+  gui-take-name: "&cTake Coins"
+  gui-take-lore: "&7Take coins from an online player."
+  gui-set-name: "&6Set Coins"
+  gui-set-lore: "&7Set exact balance for a player."
+  gui-top-name: "&eTop Players"
+  gui-top-lore: "&7View top 10 players by balance."
+  gui-reload-name: "&bReload Config"
+  gui-reload-lore: "&7Reload all categories and config."
+  gui-prices-name: "&dPrice Editor"
+  gui-prices-lore: "&7Edit skin prices in-game."
+  gui-lang-name: "&bLanguage / Jezyk"
+  gui-lang-current: "&7Current: &f{lang}"
+  gui-lang-hint: "&eLMB &7-> EN  |  &eRMB &7-> PL"
+  gui-click-to-use: "&eLeft-click &7to use"
+  gui-click-to-view: "&eLeft-click &7to view"
+  gui-click-to-reload: "&eLeft-click &7to reload"
+  # ── VIP Token admin buttons ──
+  gui-vt-give-name: "&dGive VIP Tokens"
+  gui-vt-give-lore: "&7Grant VIP Tokens to a player."
+  gui-vt-take-name: "&dTake VIP Tokens"
+  gui-vt-take-lore: "&7Remove VIP Tokens from a player."
+  gui-vt-set-name: "&dSet / Check VIP Tokens"
+  gui-vt-set-lore: "&7Set a player's VIP Token balance."
+  gui-vt-check-lore: "&7You'll see their current balance first."
+  gui-vt-set-hint: "&eLeft-click &7to use"
+  # ── Chat prompts (language-aware) ──
+  prompt-player-give: "&8[&cAdmin&8] &eEnter the player name to give coins to (or &ccancel&e):"
+  prompt-player-take: "&8[&cAdmin&8] &eEnter the player name to take coins from (or &ccancel&e):"
+  prompt-player-set: "&8[&cAdmin&8] &eEnter the player name to set balance for (or &ccancel&e):"
+  prompt-player-vtgive: "&8[&5VIP&8] &eEnter the player name to give VIP Tokens to (or &ccancel&e):"
+  prompt-player-vttake: "&8[&5VIP&8] &eEnter the player name to take VIP Tokens from (or &ccancel&e):"
+  prompt-player-vtset: "&8[&5VIP&8] &eEnter the player name to set VIP Tokens for (or &ccancel&e):"
+  prompt-amount: "&8[&cAdmin&8] &eEnter the amount for &f{player}&e:"
+  prompt-cancelled: "&8[&cAdmin&8] &7Cancelled."
+  vt-current-balance: "&8[&5VIP&8] &f{player}&7 currently has &d{amount} &7VIP Tokens."
+  prices-back-to-admin: "&7← Back to Admin Panel"
+
+prices:
+  title-tiers: "&8❀ &5&lPrice Editor"
+  title-skins: "{color}❀ {tier} &7— {current}/{total}"
+  title-products: "&8❀ &f{category} &7— {current}/{total}"
+  no-tiers: "&cNo tiers or categories detected."
+  no-skins: "&cNo skins in tier: &f{tier}"
+  no-category: "&cCategory not found: &f{category}"
+  no-products: "&cNo products in category: &f{category}"
+  prev-page: "&aPrevious page"
+  next-page: "&aNext page"
+  back-to-tiers: "&cBack to overview"
+  section-skinstudio: "&d&lSkinStudio Tiers"
+  section-categories: "&6&lCategories"
+  info-skins: "&7Skins: &f{count}"
+  info-default: "&7Default: &e{price} BC"
+  info-products: "&7Products: &f{count}"
+  info-currency: "&7Currency: &e{currency}"
+  hint-set: "&eLeft-click: &fset price"
+  hint-reset: "&eShift-click: &freset"
+  tier-skins: "&7Skins: &f{count}"
+  tier-default: "&7Default: &e{price} BC"
+  tier-click: "&eClick &7to edit skins"
+  cat-products: "&7Products: &f{count}"
+  cat-currency: "&7Currency: &e{currency}"
+  cat-click: "&eClick &7to edit prices"
+  skin-tier-label: "&7tier"
+  skin-price: "&7Price: &e{price} BellCoins"
+  skin-override: "&8(override)"
+  skin-default: "&8(tier default)"
+  product-price: "&7Price: &e{price} {currency}"
+  prompt-setting: "&7Setting price for &f{skin}"
+  prompt-current: "&7Current: &e{price} BellCoins"
+  prompt-current-currency: "&7Current: &e{price} {currency}"
+  prompt-click: "[ Click here to type new price ]"
+  prompt-hint: "&8Or type &7reset &8to clear override. &7cancel &8to abort."
+  cancelled: "&7Cancelled."
+  override-cleared: "&aCleared override for &f{skin}"
+  invalid-number: "&cInvalid number: &f{input}"
+  must-positive: "&cMust be ≥ 0."
+  price-set: "&aSet &f{skin} &ato &e{price} BellCoins"
+  price-set-currency: "&aSet &f{skin} &ato &e{price} {currency}"
+
+gui:
+  currency-button: "&6✦ Buy {currency}"
+  currency-button-lore:
+    - "&7Click to open the store"
+    - "&7and purchase more {currency}."
+    - ""
+    - "&eLeft-click &7to open link in chat"
+  back-button: "&7← Back"
+  vip-button: "&d◈ VIP Tokens"
+  vip-button-lore:
+    - "&7Your VIP Tokens: &d{amount}"
+    - ""
+    - "&7Exclusive items for VIP members."
+    - "&eClick &7to browse VIP products"
+  vip-balance-name: "&d◈ VIP Token Balance"
+  vip-balance-lore:
+    - "&7Your VIP Tokens: &d{amount}"
+    - ""
+    - "&7Earned via subscription / Tipply."
+  next-page: "&7Next Page →"
+  prev-page: "&7← Previous Page"
+  page-info: "&7Page {current}/{total}"   # ← FIX: was missing from gui section
+  close-button: "&cClose"
+  admin-panel: "&c⚙ Admin Panel"
+  your-balance: "&6Your Balance"
+  your-balance-lore:
+    - "&7{symbol}{amount} {currency}"
+  featured-click: "&eClick &7to open"
+  featured-locked: "&5VIP Access Required"
+  cancel-button: "&cCancel"
+  confirm-yes: "&aConfirm"
+  cancel: "&cCancel"
+
+provider:
+  skinstudio:
+    category-lore:
+      - '&7Tier: {color}{tier}'
+      - '&7Skins available: &f{count}'
+      - ''
+      - '&eClick to open'
+    product-lore:
+      - '&7Skin ID: &8{skin-id}'
+      - '&7Tier: {color}{tier}'
+      - ''
+      - '&6Price: &e{price} {currency}'
+      - ''
+      - '&aLeft-click &7to purchase'
+
+viptoken:
+  balance-self:     '&8[&5VIP&8] &7Your balance: &d{amount} &7VIP Tokens'
+  balance-other:    '&8[&5VIP&8] &7{player}''s balance: &d{amount} &7VIP Tokens'
+  received:         '&8[&5VIP&8] &7You received &d+{amount} VIP Tokens&7! Balance: &d{balance}'
+  given:            '&aGave &d{amount} VIP Tokens &7to &f{player}&7. New balance: &d{balance}'
+  taken:            '&aTook &d{amount} VIP Tokens &7from &f{player}&7. New balance: &d{balance}'
+  set:              '&aSet &f{player}&7''s balance to &d{amount} VIP Tokens&7.'
+  no-permission:    '&cYou do not have permission.'
+  player-not-found: '&cPlayer not found: &f{name}'
+  invalid-amount:   '&cAmount must be a positive number.'

@@ -25,9 +25,12 @@ import pl.bellmarket.event.BellMarketReloadEvent;
 import pl.bellmarket.gui.ShopGUI;
 import pl.bellmarket.listener.AdminChatListener;
 import pl.bellmarket.listener.PlayerListener;
+import pl.bellmarket.listener.ProviderSyncListener;
 import pl.bellmarket.model.Category;
 import pl.bellmarket.provider.ProductProviderRegistry;
 import pl.bellmarket.provider.SkinStudioProvider;
+
+import java.util.List;
 
 public class BellMarket extends JavaPlugin {
 
@@ -69,9 +72,9 @@ public class BellMarket extends JavaPlugin {
 
         BellMarketAPI.init(this, providerRegistry);
 
-        for (Category c : providerRegistry.generateAll()) {
-            categoryManager.getCategories().add(c);
-        }
+        refreshProviderCategories();
+        // SkinStudio may finish writing config.yml after its onEnable — retry next tick.
+        Bukkit.getScheduler().runTask(this, this::refreshProviderCategories);
 
         // ── Commands ────────────────────────────────────────────────────────
         BellMarketCommand bmCmd = new BellMarketCommand(this);
@@ -95,6 +98,7 @@ public class BellMarket extends JavaPlugin {
         pm.registerEvents(new PlayerListener(this), this);
         pm.registerEvents(new AdminChatListener(this, bmCmd.getAdminGUI()), this);
         pm.registerEvents(bmCmd.getPriceEditor(), this);
+        pm.registerEvents(new ProviderSyncListener(this), this);
 
         getLogger().info("BellMarket v" + getDescription().getVersion() + " enabled!");
         getLogger().info("Currency: " + getConfig().getString("currency.name", "BellCoins"));
@@ -132,11 +136,33 @@ public class BellMarket extends JavaPlugin {
         Bukkit.getPluginManager().callEvent(
             new BellMarketReloadEvent(BellMarketReloadEvent.Phase.PRE_PROVIDERS));
         categoryManager.reload();
-        for (Category c : providerRegistry.generateAll()) {
-            categoryManager.getCategories().add(c);
-        }
+        refreshProviderCategories();
         Bukkit.getPluginManager().callEvent(
             new BellMarketReloadEvent(BellMarketReloadEvent.Phase.POST_PROVIDERS));
+    }
+
+    /**
+     * Regenerates in-memory provider categories (SkinStudio tiers etc.)
+     * without reloading manual YAML categories from disk.
+     */
+    public void refreshProviderCategories() {
+        List<Category> generated = providerRegistry.generateAll();
+        categoryManager.removeProviderCategories();
+        categoryManager.addProviderCategories(generated);
+
+        int total = categoryManager.getCategories().size();
+        getLogger().info("Shop catalog: " + total + " categories ("
+            + generated.size() + " from providers)");
+
+        if (generated.isEmpty() && isSkinStudioInstalled()) {
+            getLogger().info("[Providers] SkinStudio is present but no skin categories yet — "
+                + "will sync automatically when ready.");
+        }
+    }
+
+    private boolean isSkinStudioInstalled() {
+        var sk = Bukkit.getPluginManager().getPlugin("SkinStudio");
+        return sk != null;
     }
 
     public static BellMarket getInstance()          { return instance; }

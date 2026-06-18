@@ -40,6 +40,21 @@ public class CategoryManager {
     public void reload() {
         categories.clear();
         categoryPermissions.clear();
+        loadManualCategories();
+    }
+
+    /** Replaces in-memory provider categories (SkinStudio etc.) without touching YAML categories. */
+    public void removeProviderCategories() {
+        categories.removeIf(this::isProviderCategory);
+    }
+
+    public void addProviderCategories(List<Category> providerCategories) {
+        if (providerCategories == null || providerCategories.isEmpty()) return;
+        categories.addAll(providerCategories);
+        categories.sort(Comparator.comparingInt(Category::getOrder));
+    }
+
+    private void loadManualCategories() {
         categoriesDir = new File(plugin.getDataFolder(), "categories");
         if (!categoriesDir.exists()) {
             categoriesDir.mkdirs();
@@ -63,7 +78,13 @@ public class CategoryManager {
             }
         }
         categories.sort(Comparator.comparingInt(Category::getOrder));
-        plugin.getLogger().info("Categories loaded: " + categories.size());
+        plugin.getLogger().info("Manual categories loaded: " + categories.size());
+    }
+
+    private boolean isProviderCategory(Category c) {
+        if (c.getId().startsWith("skinstudio_")) return true;
+        return c.getProducts().stream()
+            .anyMatch(p -> p.getProviderSource() != null && !"manual".equals(p.getProviderSource()));
     }
 
     private Category loadCategory(File file) {

@@ -1,0 +1,70 @@
+# ================================================================
+#  BellMarket - Custom Category Template
+#
+#  HOW TO CREATE A NEW CATEGORY:
+#  1. Copy this file and rename it (e.g. 09_boosters.yml)
+#  2. The number prefix sets the order in the main menu
+#  3. Edit the category section (name, icon, order)
+#  4. Add your products under the products section
+#
+#  PRODUCT TYPES:
+#
+#  SKIN_TOKEN — gives a SkinStudio skin token
+#    Required fields: skin-id, include-change-token
+#    Example:
+#      type: SKIN_TOKEN
+#      skin-id: bronze_sword
+#      include-change-token: true
+#
+#  ITEM — gives a vanilla Minecraft item
+#    Required fields: item.material, item.amount
+#    Example:
+#      type: ITEM
+#      item:
+#        material: DIAMOND
+#        amount: 16
+#
+#  COMMAND — executes console commands
+#    Required fields: commands (list)
+#    Use {player} for the buyer's name
+#    Example:
+#      type: COMMAND
+#      commands:
+#        - "give {player} minecraft:diamond 16"
+#        - "tellraw {player} \"You got diamonds!\""
+#
+#  MOUNT — same as COMMAND, semantic alias for mounts
+#
+# ================================================================
+
+category:
+  name: "&aCustom Category"
+  display-name: "&aCustom"
+  icon:
+    material: CHEST
+    name: "&aCustom Category"
+    lore:
+      - "&7Your custom products here."
+      - ""
+      - "&eClick to open"
+  order: 8
+  # Set to true when ready
+  enabled: false
+
+products:
+
+  example_product:
+    type: COMMAND
+    name: "&aExample Product"
+    lore:
+      - "&7Description of your product."
+      - ""
+      - "&6Price: &e{price} {currency}"
+      - ""
+      - "&aLeft-click &7to purchase"
+    icon:
+      material: PAPER
+    price: 100
+    enabled: false
+    commands:
+      - "say {player} bought something!"

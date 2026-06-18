@@ -1,0 +1,62 @@
+# ================================================================
+#  BellMarket - Category: VIP Exclusive
+#  Products in this category cost VIP Tokens (not BellCoins).
+#  VIP Tokens are earned via Tipply / subscription.
+#
+#  This category is linked to the VIP button (slot 6) in the
+#  main shop menu. To add products, copy the examples below.
+# ================================================================
+
+category:
+  name: "&5✦ VIP Exclusive"
+  display-name: "&5VIP Exclusive"
+  icon:
+    material: AMETHYST_SHARD
+    name: "&5✦ VIP Exclusive"
+    lore:
+      - "&7Exclusive items for VIP members."
+      - "&7Purchasable with &dVIP Tokens&7."
+      - ""
+      - "&eClick to open"
+  order: 1
+  enabled: true
+
+products:
+
+  # ── Example VIP products — customize for your server ──────────
+
+  vip_kit:
+    type: COMMAND
+    name: "&5VIP Starter Kit"
+    lore:
+      - "&7A special kit for VIP members."
+      - "&7Contains exclusive gear."
+      - ""
+      - "&dPrice: &e{price} VIP Tokens"
+      - ""
+      - "&aLeft-click &7to purchase"
+    icon:
+      material: ENDER_CHEST
+    price: 10
+    currency: VIPTOKEN
+    enabled: false
+    commands:
+      - "give {player} diamond_sword 1"
+      - "give {player} golden_apple 5"
+
+  vip_cosmetic:
+    type: COMMAND
+    name: "&dVIP Particle Effect"
+    lore:
+      - "&7A cosmetic particle trail."
+      - ""
+      - "&dPrice: &e{price} VIP Tokens"
+      - ""
+      - "&aLeft-click &7to purchase"
+    icon:
+      material: BLAZE_POWDER
+    price: 5
+    currency: VIPTOKEN
+    enabled: false
+    commands:
+      - "say {player} unlocked a VIP cosmetic!"

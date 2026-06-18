@@ -1,0 +1,51 @@
+# ================================================================
+#  BellMarket - Category: Mounts
+#
+#  HOW TO ADD MOUNTS:
+#  Type COMMAND executes console commands after purchase.
+#  Use {player} as placeholder for the buyer's name.
+#
+#  Examples for different mount plugins:
+#    EliteMobs:    "em addCustomItem {player} mount_item_name 1"
+#    MythicMounts: "mm mounts give {player} mount_id"
+#    EpicMounts:   "epicmounts give {player} mount_id"
+#    FMM:          custom command depending on your setup
+#
+#  You can chain multiple commands — each one runs in order.
+# ================================================================
+
+category:
+  name: "&dMounts"
+  display-name: "&dMounts"
+  icon:
+    material: SADDLE
+    name: "&dMounts"
+    lore:
+      - "&7Exclusive mounts for your adventure."
+      - ""
+      - "&eClick to open"
+  order: 7
+  enabled: true
+
+products:
+
+  # ── Example mount — replace command with your plugin ────────
+  example_mount:
+    type: COMMAND
+    name: "&bExample Mount"
+    lore:
+      - "&7An example mount entry."
+      - "&7Replace the command below with"
+      - "&7your mount plugin's command."
+      - ""
+      - "&6Price: &e{price} {currency}"
+      - ""
+      - "&aLeft-click &7to purchase"
+    icon:
+      material: SADDLE
+    price: 500
+    enabled: false
+    commands:
+      - "say {player} purchased a mount!"
+      # Replace with: "mm mounts give {player} mount_id"
+      # Or:           "em addCustomItem {player} mount_name 1"
