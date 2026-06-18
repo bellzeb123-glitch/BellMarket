@@ -126,6 +126,7 @@ public class AdminGUI implements Listener {
         if (!(event.getInventory().getHolder() instanceof AdminHolder)) return;
 
         event.setCancelled(true);
+        if (!player.hasPermission("bellmarket.admin")) return;
 
         int slot = event.getRawSlot();
         if (slot < 0 || slot >= 36) return;
@@ -194,6 +195,10 @@ public class AdminGUI implements Listener {
 
     public boolean handleChatInput(Player admin, String message) {
         if (!awaitingInput.containsKey(admin.getUniqueId())) return false;
+        if (!admin.hasPermission("bellmarket.admin")) {
+            awaitingInput.remove(admin.getUniqueId());
+            return false;
+        }
 
         String state = awaitingInput.get(admin.getUniqueId());
 
