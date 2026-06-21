@@ -12,6 +12,7 @@ pl\bellmarket\gui\PriceEditorGUI$SkinEntry.class
 pl\bellmarket\event\BellMarketReloadEvent.class
 pl\bellmarket\provider\ProductProviderRegistry.class
 pl\bellmarket\listener\ProviderSyncListener.class
+pl\bellmarket\provider\BellItemsProvider.class
 pl\bellmarket\api\ProFeatures.class
 pl\bellmarket\currency\CurrencyManager.class
 pl\bellmarket\event\BellMarketReloadEvent$Phase.class

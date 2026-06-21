@@ -21,6 +21,7 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 import pl.bellmarket.BellMarket;
 import pl.bellmarket.event.VipTokenChangeEvent;
 
@@ -34,6 +35,8 @@ public class VipTokenManager {
     private final Map<UUID, Long> balances = new HashMap<>();
     private File dataFile;
     private FileConfiguration dataConfig;
+    private volatile boolean dirty = false;
+    private BukkitTask saveTask;
 
     public VipTokenManager(BellMarket plugin) {
         this.plugin = plugin;
@@ -41,6 +44,8 @@ public class VipTokenManager {
     }
 
     public void reload() {
+        cancelPendingSave();
+        if (dirty) saveAll();
         balances.clear();
         dataFile = new File(plugin.getDataFolder(), "viptokens.yml");
         if (!dataFile.exists()) {
@@ -126,6 +131,7 @@ public class VipTokenManager {
     public void loadAll() { reload(); }
 
     public void saveAll() {
+        cancelPendingSave();
         if (dataConfig == null || dataFile == null) return;
         for (Map.Entry<UUID, Long> e : balances.entrySet()) {
             dataConfig.set(e.getKey().toString(), e.getValue());
@@ -133,14 +139,24 @@ public class VipTokenManager {
         try { dataConfig.save(dataFile); } catch (IOException ex) {
             plugin.getLogger().severe("Could not save viptokens.yml: " + ex.getMessage());
         }
+        dirty = false;
     }
 
     public void savePlayer(UUID id) {
-        if (dataConfig == null) return;
-        dataConfig.set(id.toString(), balances.get(id));
-        try { dataConfig.save(dataFile); } catch (IOException ex) {
-            plugin.getLogger().severe("Could not save viptokens.yml: " + ex.getMessage());
+        scheduleSave();
+    }
+
+    private void scheduleSave() {
+        dirty = true;
+        if (saveTask != null && !saveTask.isCancelled()) return;
+        saveTask = Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, this::saveAll, 40L);
+    }
+
+    private void cancelPendingSave() {
+        if (saveTask != null && !saveTask.isCancelled()) {
+            saveTask.cancel();
         }
+        saveTask = null;
     }
 
     private void fire(UUID id, long oldBal, long newBal, String reason) {

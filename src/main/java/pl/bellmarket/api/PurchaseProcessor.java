@@ -22,6 +22,7 @@ package pl.bellmarket.api;
 import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import pl.bellmarket.BellMarket;
 import pl.bellmarket.currency.Currency;
 import pl.bellmarket.event.BellMarketPurchaseEvent;
@@ -156,15 +157,48 @@ public class PurchaseProcessor {
     }
 
     private boolean deliverItem(Player player, Product product) {
-        if (product.getGiveItem() == null) {
+        ItemStack stack = resolveGiveItem(product);
+        if (stack == null) {
             plugin.getLogger().warning("No give-item defined for product: " + product.getId());
             return false;
         }
-        var leftover = player.getInventory().addItem(product.getGiveItem().clone());
-        // overflow drops at feet
-        leftover.values().forEach(stack ->
-            player.getWorld().dropItemNaturally(player.getLocation(), stack));
+        var leftover = player.getInventory().addItem(stack);
+        leftover.values().forEach(s ->
+            player.getWorld().dropItemNaturally(player.getLocation(), s));
         return true;
+    }
+
+    /**
+     * BellItems products are re-built at purchase time so SkinStudio skins
+     * are always applied (category cache may predate SkinStudio enable).
+     */
+    private ItemStack resolveGiveItem(Product product) {
+        if ("bellitems".equals(product.getProviderSource())) {
+            String id = product.getId();
+            if (id != null && id.startsWith("bellitems_")) {
+                ItemStack fresh = createBellItemsStack(id.substring("bellitems_".length()), 1);
+                if (fresh != null) return fresh;
+            }
+        }
+        if (product.getGiveItem() == null) return null;
+        return product.getGiveItem().clone();
+    }
+
+    private ItemStack createBellItemsStack(String bellItemId, int amount) {
+        if (Bukkit.getPluginManager().getPlugin("BellItems") == null) return null;
+        try {
+            Class<?> apiClass = Class.forName("pl.bell.bellitems.api.BellItemsAPI");
+            Object api = apiClass.getMethod("get").invoke(null);
+            if (api == null) return null;
+            @SuppressWarnings("unchecked")
+            var stackOpt = (java.util.Optional<ItemStack>) apiClass
+                .getMethod("createItem", String.class, int.class)
+                .invoke(api, bellItemId, amount);
+            return stackOpt.orElse(null);
+        } catch (Throwable t) {
+            plugin.getLogger().warning("[BellItems] createItem failed for " + bellItemId + ": " + t.getMessage());
+            return null;
+        }
     }
 
     private boolean deliverCommands(Player player, Product product) {

@@ -5,7 +5,9 @@
 package pl.bellmarket.provider;
 
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
 import pl.bellmarket.BellMarket;
 import pl.bellmarket.currency.Currency;
@@ -72,7 +74,8 @@ public class BellItemsProvider implements ProductProvider {
 
                 var stackOpt = (java.util.Optional<ItemStack>) createItem.invoke(api, id, 1);
                 if (stackOpt.isEmpty()) continue;
-                ItemStack stack = stackOpt.get();
+                ItemStack stack = stackOpt.get().clone();
+                String itemModel = resolveItemModel(def, stack);
 
                 products.add(new Product.Builder()
                     .id("bellitems_" + id)
@@ -89,6 +92,7 @@ public class BellItemsProvider implements ProductProvider {
                     .price(price)
                     .enabled(true)
                     .iconMaterial(material)
+                    .iconItemModel(itemModel)
                     .giveItem(stack)
                     .currency(Currency.BELLCOINS)
                     .providerSource("bellitems")
@@ -119,6 +123,28 @@ public class BellItemsProvider implements ProductProvider {
                 p.getLogger().warning("[BellItemsProvider] " + t.getMessage());
             }
             return Collections.emptyList();
+        }
+    }
+
+    private static String resolveItemModel(Object def, ItemStack stack) {
+        try {
+            Object skin = def.getClass().getMethod("getSkin").invoke(def);
+            String fromSkin = (String) skin.getClass().getMethod("getItemModel").invoke(skin);
+            if (fromSkin != null && !fromSkin.isEmpty()) return fromSkin;
+        } catch (Throwable ignored) {
+        }
+        return extractItemModel(stack);
+    }
+
+    private static String extractItemModel(ItemStack stack) {
+        if (stack == null || !stack.hasItemMeta()) return null;
+        ItemMeta meta = stack.getItemMeta();
+        if (meta == null) return null;
+        try {
+            NamespacedKey key = meta.getItemModel();
+            return key != null ? key.asString() : null;
+        } catch (Throwable ignored) {
+            return null;
         }
     }
 }

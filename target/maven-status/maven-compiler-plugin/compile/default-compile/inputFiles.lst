@@ -22,6 +22,7 @@ F:\Projekty\BellMarket\src\main\java\pl\bellmarket\listener\PlayerListener.java
 F:\Projekty\BellMarket\src\main\java\pl\bellmarket\listener\ProviderSyncListener.java
 F:\Projekty\BellMarket\src\main\java\pl\bellmarket\model\Category.java
 F:\Projekty\BellMarket\src\main\java\pl\bellmarket\model\Product.java
+F:\Projekty\BellMarket\src\main\java\pl\bellmarket\provider\BellItemsProvider.java
 F:\Projekty\BellMarket\src\main\java\pl\bellmarket\provider\EliteMobsProvider.java
 F:\Projekty\BellMarket\src\main\java\pl\bellmarket\provider\FreeMinecraftModelsProvider.java
 F:\Projekty\BellMarket\src\main\java\pl\bellmarket\provider\MythicMobsProvider.java

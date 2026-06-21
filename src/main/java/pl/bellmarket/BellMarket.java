@@ -53,7 +53,7 @@ public class BellMarket extends JavaPlugin {
     @Override
     public void onEnable() {
         instance = this;
-        printBanner();
+        getServer().getScheduler().runTaskLater(this, this::printBanner, 1L);
 
         saveDefaultConfig();
         saveResource("lang/en.yml", false);
@@ -112,8 +112,8 @@ public class BellMarket extends JavaPlugin {
     }
 
     private void printBanner() {
+        if (org.bukkit.Bukkit.getPluginManager().getPlugin("BellMarketPro") != null) return;
         var c = org.bukkit.Bukkit.getConsoleSender();
-        boolean proActive = org.bukkit.Bukkit.getPluginManager().getPlugin("BellMarketPro") != null;
         c.sendMessage("§r");
         c.sendMessage("§6  ██████╗ ███████╗██╗     ██╗          ");
         c.sendMessage("§6  ██╔══██╗██╔════╝██║     ██║          ");
@@ -123,7 +123,7 @@ public class BellMarket extends JavaPlugin {
         c.sendMessage("§6  ╚═════╝ ╚══════╝╚══════╝╚══════╝     ");
         c.sendMessage("§r");
         c.sendMessage("§7  Version §f" + getDescription().getVersion() + "  §7│  Author §bBellzeb");
-        c.sendMessage("§7  Status  §aFree §7│ " + (proActive ? "§5Pro §aActive" : "§7Pro §5Coming Soon"));
+        c.sendMessage("§7  Status  §aFree §7│ §7Server Shop & Products");
         c.sendMessage("§r");
     }
 

@@ -5,6 +5,7 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 import pl.bellmarket.BellMarket;
 
 import java.io.File;
@@ -17,6 +18,8 @@ public class CurrencyManager {
     private final Map<UUID, Long> balances = new HashMap<>();
     private File dataFile;
     private FileConfiguration dataConfig;
+    private volatile boolean dirty = false;
+    private BukkitTask saveTask;
 
     public CurrencyManager(BellMarket plugin) {
         this.plugin = plugin;
@@ -24,6 +27,8 @@ public class CurrencyManager {
     }
 
     public void reload() {
+        cancelPendingSave();
+        if (dirty) saveAll();
         dataFile = new File(plugin.getDataFolder(), "data/balances.yml");
         if (!dataFile.getParentFile().exists()) dataFile.getParentFile().mkdirs();
         if (!dataFile.exists()) {
@@ -117,6 +122,7 @@ public class CurrencyManager {
     }
 
     public void saveAll() {
+        cancelPendingSave();
         for (Map.Entry<UUID, Long> entry : balances.entrySet()) {
             dataConfig.set("balances." + entry.getKey().toString(), entry.getValue());
         }
@@ -125,16 +131,24 @@ public class CurrencyManager {
         } catch (IOException e) {
             plugin.getLogger().severe("Could not save balances.yml: " + e.getMessage());
         }
+        dirty = false;
     }
 
     private void savePlayer(UUID uuid) {
-        dataConfig.set("balances." + uuid.toString(), balances.get(uuid));
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            try { dataConfig.save(dataFile); }
-            catch (IOException e) {
-                plugin.getLogger().severe("Could not save balance for " + uuid + ": " + e.getMessage());
-            }
-        });
+        scheduleSave();
+    }
+
+    private void scheduleSave() {
+        dirty = true;
+        if (saveTask != null && !saveTask.isCancelled()) return;
+        saveTask = Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, this::saveAll, 40L);
+    }
+
+    private void cancelPendingSave() {
+        if (saveTask != null && !saveTask.isCancelled()) {
+            saveTask.cancel();
+        }
+        saveTask = null;
     }
 
     private long getStartingBalance() {

@@ -81,7 +81,15 @@ public class Product {
     }
 
     public ItemStack buildIcon() {
-        ItemStack icon = new ItemStack(iconMaterial != null ? iconMaterial : Material.PAPER);
+        ItemStack icon;
+        boolean fromGiveItem = type == Type.ITEM && giveItem != null && !giveItem.getType().isAir();
+        if (fromGiveItem) {
+            icon = giveItem.clone();
+            icon.setAmount(1);
+        } else {
+            icon = new ItemStack(iconMaterial != null ? iconMaterial : Material.PAPER);
+        }
+
         ItemMeta meta = icon.getItemMeta();
         if (meta != null) {
             if (iconName != null && !iconName.isEmpty()) {
@@ -100,7 +108,8 @@ public class Product {
                 }
                 meta.lore(resolved);
             }
-            if (iconItemModel != null && !iconItemModel.isEmpty()) {
+            // giveItem already carries item-model / skin from the provider (BellItems, EliteMobs, …)
+            if (!fromGiveItem && iconItemModel != null && !iconItemModel.isEmpty()) {
                 try {
                     NamespacedKey key = NamespacedKey.fromString(iconItemModel);
                     if (key != null) meta.setItemModel(key);
