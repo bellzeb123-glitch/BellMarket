@@ -12,6 +12,7 @@ pl\bellmarket\gui\PriceEditorGUI$SkinEntry.class
 pl\bellmarket\event\BellMarketReloadEvent.class
 pl\bellmarket\provider\ProductProviderRegistry.class
 pl\bellmarket\listener\ProviderSyncListener.class
+pl\bellmarket\api\ProFeatures.class
 pl\bellmarket\currency\CurrencyManager.class
 pl\bellmarket\event\BellMarketReloadEvent$Phase.class
 pl\bellmarket\model\Product$Type.class
@@ -37,6 +38,7 @@ pl\bellmarket\gui\ShopGUI.class
 pl\bellmarket\command\BellCoinsCommand.class
 pl\bellmarket\listener\AdminChatListener.class
 pl\bellmarket\gui\PriceEditorGUI.class
+pl\bellmarket\api\PurchaseRecord.class
 pl\bellmarket\event\BellMarketPurchaseEvent.class
 pl\bellmarket\provider\EliteMobsProvider.class
 pl\bellmarket\provider\FreeMinecraftModelsProvider.class

@@ -103,7 +103,7 @@ public class ShopGUI implements Listener {
     public void openMainMenu(Player player) {
         ShopHolder holder = new ShopHolder(null, 0);
         String title = plugin.getConfig().getString("shop.title", "&8✦ &6BellMarket &8✦");
-        Inventory inv = Bukkit.createInventory(holder, MAIN_SIZE, colorize(title));
+        Inventory inv = Bukkit.createInventory(holder, MAIN_SIZE, plugin.buildTitle(title));
         holder.setInventory(inv);
         fillBackground(inv, MAIN_SIZE);
 
@@ -155,7 +155,7 @@ public class ShopGUI implements Listener {
         ShopHolder holder = new ShopHolder(categoryId, page);
         String rawTitle = plugin.getConfig().getString("shop.category-title", "&8✦ &6{category} &8✦");
         Inventory inv = Bukkit.createInventory(holder, GUI_SIZE,
-            colorize(rawTitle.replace("{category}", category.getDisplayName())));
+            plugin.buildTitle(rawTitle.replace("{category}", category.getDisplayName())));
         holder.setInventory(inv);
         fillBackground(inv, GUI_SIZE);
 
@@ -179,7 +179,7 @@ public class ShopGUI implements Listener {
         int start = page * PRODUCTS_PER_PAGE;
         int slot = PRODUCTS_START;
         for (int i = start; i < Math.min(start + PRODUCTS_PER_PAGE, products.size()); i++)
-            inv.setItem(slot++, products.get(i).buildIcon());
+            inv.setItem(slot++, buildProductIcon(products.get(i)));
 
         if (page > 0)              inv.setItem(SLOT_PREV_PAGE, buildPrevButton());
         if (page < totalPages - 1) inv.setItem(SLOT_NEXT_PAGE, buildNextButton());
@@ -197,10 +197,10 @@ public class ShopGUI implements Listener {
         if (product == null) return;
         ConfirmHolder holder = new ConfirmHolder(categoryId, productId, page);
         Inventory inv = Bukkit.createInventory(holder, 27,
-            colorize(plugin.getLang().getRaw("shop.confirm-title")));
+            plugin.buildTitle(plugin.getLang().getRaw("shop.confirm-title")));
         holder.setInventory(inv);
         fillBackground(inv, 27);
-        inv.setItem(13, product.buildIcon());
+        inv.setItem(13, buildProductIcon(product));
         inv.setItem(11, buildConfirmButton(product));
         inv.setItem(15, buildCancelButton());
         player.openInventory(inv);
@@ -317,17 +317,18 @@ public class ShopGUI implements Listener {
             .filter(p -> p.getId().equals(holder.getProductId())).findFirst().orElse(null);
         if (product == null) return;
         PurchaseProcessor.Result result = purchaseProcessor.process(player, product);
+        long paidPrice = plugin.getEffectivePrice(product);
         switch (result) {
             case SUCCESS -> {
                 player.sendMessage(plugin.getLang().component("shop.purchase-success",
-                    "product", product.getName(), "price", String.valueOf(product.getPrice()),
+                    "product", product.getName(), "price", String.valueOf(paidPrice),
                     "balance", plugin.getLang().formatAmount(plugin.getCurrency().getBalance(player))));
                 playSound(player, "purchase-success", Sound.ENTITY_PLAYER_LEVELUP);
                 Bukkit.getScheduler().runTask(plugin, () -> openCategory(player, holder.getCategoryId(), holder.getPage()));
             }
             case NOT_ENOUGH_COINS -> {
                 player.sendMessage(plugin.getLang().component("shop.not-enough-currency",
-                    "price", String.valueOf(product.getPrice()),
+                    "price", String.valueOf(paidPrice),
                     "balance", plugin.getLang().formatAmount(plugin.getCurrency().getBalance(player))));
                 playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
                 Bukkit.getScheduler().runTask(plugin, () -> openCategory(player, holder.getCategoryId(), holder.getPage()));
@@ -388,12 +389,30 @@ public class ShopGUI implements Listener {
     private ItemStack buildCancelButton(){ return simple(Material.RED_WOOL, plugin.getLang().getRaw("gui.cancel-button")); }
 
     private ItemStack buildConfirmButton(Product product) {
+        long price = plugin.getEffectivePrice(product);
         ItemStack item = new ItemStack(Material.LIME_WOOL);
         ItemMeta meta = item.getItemMeta();
         meta.displayName(colorize(plugin.getLang().getRaw("gui.confirm-yes")));
         meta.lore(List.of(colorize(plugin.getLang().getRaw("shop.confirm-info",
-            "product", product.getName(), "price", plugin.getLang().formatAmount(product.getPrice())))));
+            "product", product.getName(), "price", plugin.getLang().formatAmount(price)))));
         item.setItemMeta(meta); return item;
+    }
+
+    private ItemStack buildProductIcon(Product product) {
+        ItemStack icon = product.buildIcon();
+        var pro = plugin.getProFeatures();
+        if (pro == null || !pro.hasActiveFlashSale(product)) return icon;
+
+        long price = plugin.getEffectivePrice(product);
+        ItemMeta meta = icon.getItemMeta();
+        if (meta == null) return icon;
+        List<Component> lore = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
+        lore.add(colorize(plugin.getLang().getRaw("pro.flash-sale-badge",
+            "price", plugin.getLang().formatAmount(price),
+            "original", plugin.getLang().formatAmount(product.getPrice()))));
+        meta.lore(lore);
+        icon.setItemMeta(meta);
+        return icon;
     }
 
     private ItemStack simple(Material mat, String name) {

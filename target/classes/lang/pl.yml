@@ -194,3 +194,17 @@ viptoken:
   no-permission:    '&cBrak uprawnień.'
   player-not-found: '&cNie znaleziono gracza: &f{name}'
   invalid-amount:   '&cIlość musi być liczbą dodatnią.'
+
+pro:
+  flash-sale-badge: '&c&lPROMOCJA! &7Teraz: &6{price} &8(było &7{original}&8)'
+  stats:
+    requires-pro: '&cStatystyki sprzedaży wymagają BellMarket Pro.'
+    header: '&6&l=== Statystyki BellMarket Pro ==='
+    totals: '&7Zakupy: &f{purchases} &8| &7Przychód: &6{bellcoins} &7+ &d{viptoken} VIP'
+    top-products: '&e&lTop produkty:'
+    top-buyers: '&e&lTop kupujący:'
+    product-line: '&7{rank}. &f{product} &8— &7{count}x, &6{revenue}'
+    buyer-line: '&7{rank}. &f{player} &8— &7{count} zakupów, &6{bellcoins} &7+ &d{viptoken} VIP'
+    flash-sales: '&e&lAktywne flash sale:'
+    flash-line: '&7• &f{id} &8— &c-{discount}%'
+    empty: '&8(brak danych)'

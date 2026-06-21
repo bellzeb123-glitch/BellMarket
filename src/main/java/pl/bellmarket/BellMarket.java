@@ -9,11 +9,14 @@
  */
 package pl.bellmarket;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import pl.bellmarket.api.BellMarketAPI;
+import pl.bellmarket.api.ProFeatures;
 import pl.bellmarket.command.BellCoinsCommand;
 import pl.bellmarket.command.BellMarketCommand;
 import pl.bellmarket.command.VipTokenCommand;
@@ -31,6 +34,7 @@ import pl.bellmarket.provider.ProductProviderRegistry;
 import pl.bellmarket.provider.SkinStudioProvider;
 
 import java.util.List;
+import java.util.function.Function;
 
 public class BellMarket extends JavaPlugin {
 
@@ -43,6 +47,8 @@ public class BellMarket extends JavaPlugin {
     private VipTokenManager vipTokens;
     private ProductProviderRegistry providerRegistry;
     private pl.bellmarket.gui.AdminGUI adminGUI;
+    private Function<String, Component> titleTransformer;
+    private ProFeatures proFeatures;
 
     @Override
     public void onEnable() {
@@ -117,7 +123,8 @@ public class BellMarket extends JavaPlugin {
         c.sendMessage("§r");
         c.sendMessage("§7  Version §f" + getDescription().getVersion()
             + "  §7│  Author §bBellzeb");
-        c.sendMessage("§7  Status  §aFree §7│ §7Pro §5Coming Soon");
+        c.sendMessage("§7  Status  §aFree §7│ §7Pro "
+            + (Bukkit.getPluginManager().getPlugin("BellMarketPro") != null ? "§6Active" : "§5Addon"));
         c.sendMessage("§r");
     }
 
@@ -173,4 +180,30 @@ public class BellMarket extends JavaPlugin {
     public VipTokenManager getVipTokens()           { return vipTokens; }
     public ProductProviderRegistry getProviderRegistry() { return providerRegistry; }
     public pl.bellmarket.gui.AdminGUI getAdminGUI()       { return adminGUI; }
+
+    public void setTitleTransformer(Function<String, Component> transformer) {
+        this.titleTransformer = transformer;
+    }
+
+    public void setProFeatures(ProFeatures features) {
+        this.proFeatures = features;
+    }
+
+    public ProFeatures getProFeatures() {
+        return proFeatures;
+    }
+
+    public long getEffectivePrice(pl.bellmarket.model.Product product) {
+        if (proFeatures != null) {
+            return proFeatures.resolvePrice(product);
+        }
+        return product.getPrice();
+    }
+
+    public Component buildTitle(String raw) {
+        if (titleTransformer != null) {
+            return titleTransformer.apply(raw);
+        }
+        return LegacyComponentSerializer.legacyAmpersand().deserialize(raw);
+    }
 }

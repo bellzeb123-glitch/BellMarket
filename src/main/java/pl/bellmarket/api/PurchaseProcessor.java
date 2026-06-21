@@ -61,7 +61,7 @@ public class PurchaseProcessor {
         }
 
         Currency currency = product.getCurrency() != null ? product.getCurrency() : Currency.BELLCOINS;
-        long price = product.getPrice();
+        long price = plugin.getEffectivePrice(product);
 
         boolean hasEnough = switch (currency) {
             case BELLCOINS -> plugin.getCurrency().hasEnough(player, price);
@@ -108,6 +108,11 @@ public class PurchaseProcessor {
                 "[Purchase] %s bought '%s' for %d %s (provider=%s)",
                 player.getName(), product.getId(), price, currency.getDisplayName(),
                 product.getProviderSource()));
+        }
+
+        if (plugin.getProFeatures() != null) {
+            plugin.getProFeatures().recordPurchase(
+                new PurchaseRecord(player, product, price, currency));
         }
         return Result.SUCCESS;
     }
