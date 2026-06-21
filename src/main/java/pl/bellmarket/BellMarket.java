@@ -72,9 +72,9 @@ public class BellMarket extends JavaPlugin {
 
         // ── Built-in providers ──────────────────────────────────────────────
         providerRegistry.register(new SkinStudioProvider(this));
-        // Auto-generation for MythicMobs / EliteMobs / FMM disabled (broken icons/effects).
-        // ItemShop only auto-loads skins (SkinStudio), as requested.
-        // To re-enable, restore the imports and register the providers here.
+        if (Bukkit.getPluginManager().getPlugin("BellItems") != null) {
+            providerRegistry.register(new pl.bellmarket.provider.BellItemsProvider(this));
+        }
 
         BellMarketAPI.init(this, providerRegistry);
 

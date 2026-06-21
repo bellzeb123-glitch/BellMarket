@@ -17,7 +17,9 @@ public class ProviderSyncListener implements Listener {
 
     @EventHandler
     public void onPluginEnable(PluginEnableEvent event) {
-        if (!"SkinStudio".equalsIgnoreCase(event.getPlugin().getName())) return;
-        Bukkit.getScheduler().runTask(plugin, plugin::refreshProviderCategories);
+        String name = event.getPlugin().getName();
+        if ("SkinStudio".equalsIgnoreCase(name) || "BellItems".equalsIgnoreCase(name)) {
+            Bukkit.getScheduler().runTask(plugin, plugin::refreshProviderCategories);
+        }
     }
 }
