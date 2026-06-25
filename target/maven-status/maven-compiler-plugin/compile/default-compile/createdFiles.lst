@@ -9,6 +9,7 @@ pl\bellmarket\gui\AdminGUI.class
 pl\bellmarket\provider\EliteMobsProvider$EMItem.class
 pl\bellmarket\gui\PriceEditorGUI$TierMeta.class
 pl\bellmarket\gui\PriceEditorGUI$SkinEntry.class
+pl\bellmarket\provider\BellItemsCatalogBridge$CatalogItemMeta.class
 pl\bellmarket\event\BellMarketReloadEvent.class
 pl\bellmarket\provider\ProductProviderRegistry.class
 pl\bellmarket\listener\ProviderSyncListener.class
@@ -38,6 +39,7 @@ pl\bellmarket\provider\SkinStudioProvider$TierMeta.class
 pl\bellmarket\gui\ShopGUI.class
 pl\bellmarket\command\BellCoinsCommand.class
 pl\bellmarket\listener\AdminChatListener.class
+pl\bellmarket\provider\BellItemsCatalogBridge.class
 pl\bellmarket\gui\PriceEditorGUI.class
 pl\bellmarket\api\PurchaseRecord.class
 pl\bellmarket\event\BellMarketPurchaseEvent.class

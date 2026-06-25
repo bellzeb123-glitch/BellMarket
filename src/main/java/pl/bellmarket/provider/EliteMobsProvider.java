@@ -80,8 +80,11 @@ public class EliteMobsProvider implements ProductProvider {
         long globalDefault = cfg.getLong("default-price", defaultPrice);
         List<String> excluded = cfg.getStringList("excluded-items");
         int baseOrder = cfg.getInt("base-order", 300);
+        boolean preferBellItems = cfg.getBoolean("prefer-bellitems-catalog", true);
         var itemPrices = cfg.getConfigurationSection("item-prices");
         var cats = cfg.getConfigurationSection("categories");
+
+        BellItemsCatalogBridge bellBridge = plugin.getBellItemsCatalogBridge();
 
         File customItemsDir = new File(em.getDataFolder(), "customitems");
         if (!customItemsDir.exists()) return Collections.emptyList();
@@ -124,22 +127,61 @@ public class EliteMobsProvider implements ProductProvider {
                 long price = (itemPrices != null && itemPrices.contains(item.id))
                     ? itemPrices.getLong(item.id) : catDefault;
 
+                ItemStack giveStack = null;
+                Material iconMat = item.material;
+                String iconModel = item.itemModel;
+                String displayName = item.displayName;
+                List<String> lore = List.of(
+                    "&7Source: &fEliteMobs",
+                    color + display + " &7tier",
+                    "",
+                    "&6Price: &e" + price + " BellCoins",
+                    "",
+                    "&aLeft-click &7to purchase"
+                );
+
+                if (preferBellItems && bellBridge != null && bellBridge.isAvailable()) {
+                    var catalogId = bellBridge.resolveCatalogId(item.id);
+                    if (catalogId.isPresent()) {
+                        var stackOpt = bellBridge.createShopItem(catalogId.get());
+                        var metaOpt = bellBridge.readMeta(catalogId.get());
+                        if (stackOpt.isPresent()) {
+                            giveStack = stackOpt.get();
+                            if (metaOpt.isPresent()) {
+                                var meta = metaOpt.get();
+                                if (meta.displayName() != null && !meta.displayName().isBlank()) {
+                                    displayName = meta.displayName();
+                                }
+                                if (meta.material() != null) iconMat = meta.material();
+                                if (meta.itemModel() != null && !meta.itemModel().isBlank()) {
+                                    iconModel = meta.itemModel();
+                                }
+                            }
+                            lore = List.of(
+                                "&7Source: &fBellItems",
+                                "&7EM id: &8" + item.id,
+                                color + display + " &7tier",
+                                "",
+                                "&6Price: &e" + price + " BellCoins",
+                                "",
+                                "&aLeft-click &7to purchase"
+                            );
+                        }
+                    }
+                }
+
+                if (giveStack == null) {
+                    giveStack = buildItemStack(item);
+                }
+
                 products.add(new Product.Builder()
                     .id("elitemobs_" + item.id)
-                    .type(Product.Type.ITEM)        // ← ITEM type, not COMMAND
-                    .name(item.displayName)
-                    .lore(List.of(
-                        "&7Source: &fEliteMobs",
-                        color + display + " &7tier",
-                        "",
-                        "&6Price: &e" + price + " BellCoins",
-                        "",
-                        "&aLeft-click &7to purchase"
-                    ))
+                    .type(Product.Type.ITEM)
+                    .name(displayName)
+                    .lore(lore)
                     .price(price).enabled(true)
-                    .iconMaterial(item.material).iconItemModel(item.itemModel)
-                    // giveItem built from YAML — 100% reliable, no EM commands needed
-                    .giveItem(buildItemStack(item))
+                    .iconMaterial(iconMat).iconItemModel(iconModel)
+                    .giveItem(giveStack)
                     .currency(Currency.BELLCOINS).providerSource("elitemobs")
                     .build());
             }

@@ -19,6 +19,15 @@ public class ProviderSyncListener implements Listener {
     public void onPluginEnable(PluginEnableEvent event) {
         String name = event.getPlugin().getName();
         if ("SkinStudio".equalsIgnoreCase(name) || "BellItems".equalsIgnoreCase(name)) {
+            if (plugin.getBellItemsCatalogBridge() != null) {
+                plugin.getBellItemsCatalogBridge().refresh();
+            }
+            if ("BellItems".equalsIgnoreCase(name)
+                && plugin.getProviderRegistry().get("bellitems").isEmpty()) {
+                plugin.getProviderRegistry().register(
+                    new pl.bellmarket.provider.BellItemsProvider(
+                        plugin, plugin.getBellItemsCatalogBridge()));
+            }
             Bukkit.getScheduler().runTask(plugin, plugin::refreshProviderCategories);
         }
     }

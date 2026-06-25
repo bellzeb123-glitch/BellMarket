@@ -47,6 +47,7 @@ public class BellMarket extends JavaPlugin {
     private VipTokenManager vipTokens;
     private ProductProviderRegistry providerRegistry;
     private pl.bellmarket.gui.AdminGUI adminGUI;
+    private pl.bellmarket.provider.BellItemsCatalogBridge bellItemsCatalogBridge;
     private Function<String, Component> titleTransformer;
     private ProFeatures proFeatures;
 
@@ -69,11 +70,12 @@ public class BellMarket extends JavaPlugin {
         this.shopGUI         = new ShopGUI(this);
         this.vipTokens       = new VipTokenManager(this);
         this.providerRegistry = new ProductProviderRegistry(this);
+        this.bellItemsCatalogBridge = new pl.bellmarket.provider.BellItemsCatalogBridge(this);
 
         // ── Built-in providers ──────────────────────────────────────────────
         providerRegistry.register(new SkinStudioProvider(this));
         if (Bukkit.getPluginManager().getPlugin("BellItems") != null) {
-            providerRegistry.register(new pl.bellmarket.provider.BellItemsProvider(this));
+            providerRegistry.register(new pl.bellmarket.provider.BellItemsProvider(this, bellItemsCatalogBridge));
         }
 
         BellMarketAPI.init(this, providerRegistry);
@@ -152,6 +154,9 @@ public class BellMarket extends JavaPlugin {
      * without reloading manual YAML categories from disk.
      */
     public void refreshProviderCategories() {
+        if (bellItemsCatalogBridge != null) {
+            bellItemsCatalogBridge.refresh();
+        }
         List<Category> generated = providerRegistry.generateAll();
         categoryManager.removeProviderCategories();
         categoryManager.addProviderCategories(generated);
@@ -178,6 +183,9 @@ public class BellMarket extends JavaPlugin {
     public ShopGUI getShopGUI()                     { return shopGUI; }
     public VipTokenManager getVipTokens()           { return vipTokens; }
     public ProductProviderRegistry getProviderRegistry() { return providerRegistry; }
+    public pl.bellmarket.provider.BellItemsCatalogBridge getBellItemsCatalogBridge() {
+        return bellItemsCatalogBridge;
+    }
     public pl.bellmarket.gui.AdminGUI getAdminGUI()       { return adminGUI; }
 
     public void setTitleTransformer(Function<String, Component> transformer) {

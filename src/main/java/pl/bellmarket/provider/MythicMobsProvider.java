@@ -234,7 +234,35 @@ public class MythicMobsProvider implements ProductProvider {
                 plugin.getLogger().warning("[MythicMobsProvider] Could not write config: " + e.getMessage());
             }
         }
-        return YamlConfiguration.loadConfiguration(f);
+        try {
+            YamlConfiguration cfg = new YamlConfiguration();
+            if (f.exists()) {
+                cfg.load(f);
+            }
+            return cfg;
+        } catch (org.bukkit.configuration.InvalidConfigurationException | IOException e) {
+            File broken = new File(dir, "mythicmobs.yml.broken");
+            if (f.exists() && f.renameTo(broken)) {
+                plugin.getLogger().warning("[MythicMobsProvider] Invalid mythicmobs.yml — renamed to mythicmobs.yml.broken");
+            } else {
+                plugin.getLogger().warning("[MythicMobsProvider] Invalid mythicmobs.yml: " + e.getMessage());
+            }
+            try {
+                Files.writeString(f.toPath(), buildTemplate(defaultPrice));
+                plugin.getLogger().info("[MythicMobsProvider] Regenerated providers/mythicmobs.yml");
+            } catch (IOException io) {
+                plugin.getLogger().warning("[MythicMobsProvider] Could not regenerate config: " + io.getMessage());
+            }
+            YamlConfiguration cfg = new YamlConfiguration();
+            if (f.exists()) {
+                try {
+                    cfg.load(f);
+                } catch (org.bukkit.configuration.InvalidConfigurationException | IOException ignored) {
+                    // return empty config as last resort
+                }
+            }
+            return cfg;
+        }
     }
 
     private String buildTemplate(long defaultPrice) {
@@ -257,8 +285,7 @@ enabled: true
 base-order: 200
 
 # Global default price for any MM item without a specific price
-default-price: """ + defaultPrice + """
-
+default-price: %d
 
 # ─── Include filter ──────────────────────────────────────────
 # Only expose items whose name STARTS with one of these prefixes.
@@ -292,7 +319,7 @@ categories: {}
 #   shop_legendary_sword: 5000
 #   shop_basic_axe: 200
 item-prices: {}
-""";
+""".formatted(defaultPrice);
     }
 
     private static String categoryOf(String itemName) {

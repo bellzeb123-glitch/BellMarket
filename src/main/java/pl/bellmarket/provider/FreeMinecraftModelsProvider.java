@@ -15,6 +15,7 @@ import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 import pl.bellmarket.BellMarket;
 import pl.bellmarket.currency.Currency;
@@ -59,11 +60,14 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
 
         long globalDefault    = cfg.getLong("default-price", defaultPrice);
         int  baseOrder        = cfg.getInt("base-order", 400);
+        boolean preferBellItems = cfg.getBoolean("prefer-bellitems-catalog", true);
         List<String> excluded = cfg.getStringList("excluded-models");
         List<String> prefixes = cfg.getStringList("include-prefixes");
         var modelsCfg         = cfg.getConfigurationSection("models");
         var modelPrices       = cfg.getConfigurationSection("model-prices");
         var cats              = cfg.getConfigurationSection("categories");
+
+        BellItemsCatalogBridge bellBridge = plugin.getBellItemsCatalogBridge();
 
         List<String> filtered = modelIds.stream()
             .filter(id -> !excluded.contains(id))
@@ -107,23 +111,64 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
                     ? mCfg.getStringList("commands")
                     : List.of("fmm spawn {player} " + modelId);
 
-                products.add(new Product.Builder()
+                Product.Type productType = Product.Type.COMMAND;
+                ItemStack giveItem = null;
+                List<String> lore = List.of(
+                    "&7Source: &fFreeMinecraftModels",
+                    "&7Model: &8" + modelId,
+                    "",
+                    "&6Price: &e" + price + " BellCoins",
+                    "",
+                    "&aLeft-click &7to purchase"
+                );
+
+                if (preferBellItems && bellBridge != null && bellBridge.isAvailable()) {
+                    var catalogId = bellBridge.resolveFmmModel(modelId);
+                    if (catalogId.isPresent()) {
+                        var stackOpt = bellBridge.createShopItem(catalogId.get());
+                        var metaOpt = bellBridge.readMeta(catalogId.get());
+                        if (stackOpt.isPresent()) {
+                            giveItem = stackOpt.get();
+                            productType = Product.Type.ITEM;
+                            commands = List.of();
+                            if (metaOpt.isPresent()) {
+                                var meta = metaOpt.get();
+                                if (meta.displayName() != null && !meta.displayName().isBlank()) {
+                                    displayName = meta.displayName();
+                                }
+                                if (meta.material() != null) iconMat = meta.material();
+                                if (meta.itemModel() != null && !meta.itemModel().isBlank()) {
+                                    itemModel = meta.itemModel();
+                                }
+                            }
+                            lore = List.of(
+                                "&7Source: &fBellItems",
+                                "&7FMM model: &8" + modelId,
+                                "",
+                                "&6Price: &e" + price + " BellCoins",
+                                "",
+                                "&aLeft-click &7to purchase"
+                            );
+                        }
+                    }
+                }
+
+                Product.Builder builder = new Product.Builder()
                     .id("fmm_" + modelId)
-                    .type(Product.Type.COMMAND)
+                    .type(productType)
                     .name(color + displayName)
-                    .lore(List.of(
-                        "&7Source: &fFreeMinecraftModels",
-                        "&7Model: &8" + modelId,
-                        "",
-                        "&6Price: &e" + price + " BellCoins",
-                        "",
-                        "&aLeft-click &7to purchase"
-                    ))
+                    .lore(lore)
                     .price(price).enabled(true)
                     .iconMaterial(iconMat).iconItemModel(itemModel)
-                    .commands(commands)
-                    .currency(Currency.BELLCOINS).providerSource("fmm")
-                    .build());
+                    .currency(Currency.BELLCOINS).providerSource("fmm");
+
+                if (productType == Product.Type.ITEM && giveItem != null) {
+                    builder.giveItem(giveItem);
+                } else {
+                    builder.commands(commands);
+                }
+
+                products.add(builder.build());
             }
             if (products.isEmpty()) continue;
 
@@ -230,6 +275,7 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
 enabled: true
 base-order: 400
 default-price: ${DEFAULT_PRICE}
+prefer-bellitems-catalog: true
 
 # Only include models starting with these prefixes (empty = all)
 include-prefixes: []
