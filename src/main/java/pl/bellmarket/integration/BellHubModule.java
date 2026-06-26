@@ -58,6 +58,8 @@ public final class BellHubModule implements BellModule {
         stats.add(new Stat("Kategorie", Integer.toString(categories.size()), "cyan"));
         stats.add(new Stat("Produkty", Integer.toString(products), "violet"));
         stats.add(new Stat("BellCoins w obiegu", Long.toString(inCirc), "gold"));
+        String lang = plugin.getConfig().getString("language", "en");
+        stats.add(new Stat("Język", lang.toUpperCase(), "silver"));
         return stats;
     }
 
