@@ -176,15 +176,22 @@ public class CategoryManager {
                 builder.commands(sec.getStringList("commands"));
             }
             case ITEM -> {
-                ConfigurationSection itemSec = sec.getConfigurationSection("item");
-                if (itemSec != null) {
-                    String matName = itemSec.getString("material", "STONE");
-                    int amount = itemSec.getInt("amount", 1);
-                    try {
-                        Material mat = Material.valueOf(matName.toUpperCase(Locale.ROOT));
-                        builder.giveItem(new ItemStack(mat, amount));
-                    } catch (IllegalArgumentException e) {
-                        plugin.getLogger().warning("Invalid item material: " + matName);
+                // Pelny ItemStack (np. skopiowany z EliteMobs/BellItems przez panel BellHub) ma
+                // pierwszenstwo — zachowuje NBT/model/nazwe. Fallback: prosty item.material/amount.
+                ItemStack full = sec.getItemStack("give-item");
+                if (full != null) {
+                    builder.giveItem(full);
+                } else {
+                    ConfigurationSection itemSec = sec.getConfigurationSection("item");
+                    if (itemSec != null) {
+                        String matName = itemSec.getString("material", "STONE");
+                        int amount = itemSec.getInt("amount", 1);
+                        try {
+                            Material mat = Material.valueOf(matName.toUpperCase(Locale.ROOT));
+                            builder.giveItem(new ItemStack(mat, amount));
+                        } catch (IllegalArgumentException e) {
+                            plugin.getLogger().warning("Invalid item material: " + matName);
+                        }
                     }
                 }
             }

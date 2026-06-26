@@ -117,6 +117,8 @@ public class EliteMobsProvider implements ProductProvider {
             List<EMItem> items = entry.getValue();
 
             var catCfg = cats != null ? cats.getConfigurationSection(tierKey) : null;
+            // Per-kategoria enabled (sterowane z panelu BellHub: categories.<tier>.enabled)
+            if (catCfg != null && !catCfg.getBoolean("enabled", true)) continue;
             String display  = catCfg != null ? catCfg.getString("display-name", formatTier(tierKey)) : formatTier(tierKey);
             String color    = catCfg != null ? catCfg.getString("color", tierColor(tierKey)) : tierColor(tierKey);
             Material icon   = parseMaterial(catCfg != null ? catCfg.getString("icon") : null, tierIcon(tierKey));

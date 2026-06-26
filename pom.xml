@@ -25,6 +25,10 @@
             <id>papermc</id>
             <url>https://repo.papermc.io/repository/maven-public/</url>
         </repository>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -32,6 +36,13 @@
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
             <version>[26.1.2.build,)</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Kontrakt panelu BellHub — provided: klasy dostarcza jar BellHub w runtime (softdepend) -->
+        <dependency>
+            <groupId>com.github.bellzeb123-glitch</groupId>
+            <artifactId>bell-hub-api</artifactId>
+            <version>0.1.0</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>

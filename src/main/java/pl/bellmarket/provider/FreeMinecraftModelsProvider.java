@@ -87,6 +87,8 @@ public class FreeMinecraftModelsProvider implements ProductProvider {
             String catKey = entry.getKey();
             List<String> models = entry.getValue();
             var catCfg = cats != null ? cats.getConfigurationSection(catKey) : null;
+            // Per-kategoria enabled (sterowane z panelu BellHub: categories.<key>.enabled)
+            if (catCfg != null && !catCfg.getBoolean("enabled", true)) continue;
 
             String display  = catCfg != null ? catCfg.getString("display-name", capitalize(catKey)) : capitalize(catKey);
             String color    = catCfg != null ? catCfg.getString("color", "&b") : "&b";

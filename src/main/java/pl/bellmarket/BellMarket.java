@@ -108,6 +108,16 @@ public class BellMarket extends JavaPlugin {
         pm.registerEvents(bmCmd.getPriceEditor(), this);
         pm.registerEvents(new ProviderSyncListener(this), this);
 
+        // ── Panel BellHub (opcjonalny) ──────────────────────────────────────
+        if (getServer().getPluginManager().getPlugin("BellHub") != null) {
+            try {
+                pl.bellmarket.integration.BellHubModule.register(this);
+                getLogger().info("Zarejestrowano modul BellMarket w panelu BellHub.");
+            } catch (Throwable t) {
+                getLogger().warning("Nie udalo sie zarejestrowac modulu BellHub: " + t.getMessage());
+            }
+        }
+
         getLogger().info("BellMarket v" + getDescription().getVersion() + " enabled!");
         getLogger().info("Currency: " + getConfig().getString("currency.name", "BellCoins"));
         getLogger().info("Categories loaded: " + categoryManager.getCategories().size());

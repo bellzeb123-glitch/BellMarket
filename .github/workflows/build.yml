@@ -16,6 +16,11 @@ jobs:
           java-version: '25'
           distribution: 'temurin'
 
+      - name: Install bell-hub-api
+        run: |
+          git clone --depth 1 https://github.com/bellzeb123-glitch/bell-hub-api.git /tmp/bell-hub-api
+          mvn -f /tmp/bell-hub-api/pom.xml install -DskipTests -B -q
+
       - name: Build with Maven
         run: mvn package -q
 
