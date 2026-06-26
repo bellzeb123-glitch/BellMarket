@@ -17,6 +17,8 @@ F:\Projekty\BellMarket\src\main\java\pl\bellmarket\event\VipTokenChangeEvent.jav
 F:\Projekty\BellMarket\src\main\java\pl\bellmarket\gui\AdminGUI.java
 F:\Projekty\BellMarket\src\main\java\pl\bellmarket\gui\PriceEditorGUI.java
 F:\Projekty\BellMarket\src\main\java\pl\bellmarket\gui\ShopGUI.java
+F:\Projekty\BellMarket\src\main\java\pl\bellmarket\integration\BellHubModule.java
+F:\Projekty\BellMarket\src\main\java\pl\bellmarket\integration\MarketAdmin.java
 F:\Projekty\BellMarket\src\main\java\pl\bellmarket\listener\AdminChatListener.java
 F:\Projekty\BellMarket\src\main\java\pl\bellmarket\listener\PlayerListener.java
 F:\Projekty\BellMarket\src\main\java\pl\bellmarket\listener\ProviderSyncListener.java

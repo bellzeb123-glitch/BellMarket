@@ -9,6 +9,7 @@ website: ''
 softdepend:
   - SkinStudio
   - BellLP
+  - BellHub
 
 commands:
   bellmarket:

@@ -46,6 +46,9 @@ pl\bellmarket\event\BellMarketPurchaseEvent.class
 pl\bellmarket\provider\EliteMobsProvider.class
 pl\bellmarket\provider\FreeMinecraftModelsProvider.class
 pl\bellmarket\command\BellMarketCommand.class
+pl\bellmarket\integration\MarketAdmin$1.class
+pl\bellmarket\integration\MarketAdmin.class
 pl\bellmarket\provider\ProductProvider.class
 pl\bellmarket\config\CategoryManager$1.class
+pl\bellmarket\integration\BellHubModule.class
 pl\bellmarket\config\CategoryManager.class
