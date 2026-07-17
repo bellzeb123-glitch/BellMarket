@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <!--
   BellMarket - Premium Shop Plugin
   Copyright (c) 2026 BellMarket. All rights reserved.
@@ -11,14 +11,14 @@
 
     <groupId>pl.bellmarket</groupId>
     <artifactId>BellMarket</artifactId>
-    <version>1.26.1.2</version>
+    <version>1.26.2.0</version>
     <packaging>jar</packaging>
 
     <properties>
-        <maven.compiler.source>25</maven.compiler.source>
-        <maven.compiler.target>25</maven.compiler.target>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <paper.version>1.21.4-R0.1-SNAPSHOT</paper.version>
+        <paper.version>26.2.build.60-beta</paper.version>
     </properties>
 
     <repositories>
