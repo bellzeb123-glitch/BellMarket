@@ -1,0 +1,30 @@
+# ============================================================
+#  BellMarket - BellItems Provider
+# ============================================================
+# Jedna sekcja sklepu: bellitems_gear (wszystkie itemy z katalogu BellItems).
+# Ceny nadpisujesz w item-prices (klucz = id z BellItems, bez prefiksu bellitems_).
+#
+# list-all-items: true  = każdy nowy item z BellItems ląduje w sklepie
+# list-all-items: false = tylko id z included-items LUB z item-prices
+#
+# Kupno (nie widoczność):
+#   categories.gear.enabled: false  = cała sekcja niewidoczna / bez kupna
+#   item-enabled.<id>: false        = konkretny przedmiot bez kupna (wciąż widać w panelu)
+#   excluded-items:                 = całkowicie ukrywa z katalogu
+# ============================================================
+
+enabled: true
+base-order: 250
+default-price: 1000
+list-all-items: true
+included-items: []
+excluded-items: []
+
+categories:
+  gear:
+    enabled: true
+    display-name: "BellItems Gear"
+    icon: NETHERITE_SWORD
+
+item-prices: {}
+item-enabled: {}

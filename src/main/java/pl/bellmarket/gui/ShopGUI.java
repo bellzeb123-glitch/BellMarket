@@ -334,6 +334,7 @@ public class ShopGUI implements Listener {
                 Bukkit.getScheduler().runTask(plugin, () -> openCategory(player, holder.getCategoryId(), holder.getPage()));
             }
             case PRODUCT_DISABLED -> { player.sendMessage(plugin.getLang().component("shop.out-of-stock")); playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO); }
+            case PURCHASES_DISABLED -> { player.sendMessage(plugin.getLang().component("shop.purchases-disabled")); playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO); }
             case DELIVERY_FAILED  -> { player.sendMessage(plugin.getLang().component("shop.purchase-failed")); playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO); }
             case NO_PERMISSION    -> { player.sendMessage(plugin.getLang().component("no-permission")); playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO); }
             case CANCELLED        -> { player.sendMessage(plugin.getLang().component("shop.purchase-failed")); playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO); }

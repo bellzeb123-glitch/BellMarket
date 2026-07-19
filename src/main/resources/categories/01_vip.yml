@@ -1,63 +1,167 @@
 # ================================================================
-#  BellMarket - Category: VIP Exclusive
-#  Products in this category cost VIP Tokens (not BellCoins).
-#  VIP Tokens are earned via Tipply / subscription.
-#
-#  This category is linked to the VIP button (slot 6) in the
-#  main shop menu. To add products, copy the examples below.
+#  BellMarket VIP - Craftenmine FMM (1 VIP Token)
+#  Polskie znaki jako \uXXXX w "..." - nie psuje FTP/Notepad.
+#  Wgraj ten PLIK (nie kopiuj z czatu) do:
+#    plugins/BellMarket/categories/01_vip.yml
+#  providers/fmm-vip.yml -> enabled: false
+#  Potem: /bellmarket reload
 # ================================================================
 
 category:
-  name: "&5✦ VIP Exclusive"
+  name: "&5\u2726 VIP Exclusive"
   display-name: "&5VIP Exclusive"
   icon:
     material: AMETHYST_SHARD
-    name: "&5✦ VIP Exclusive"
+    name: "&5\u2726 VIP Exclusive"
     lore:
-      - "&7Exclusive items for VIP members."
-      - "&7Purchasable with &dVIP Tokens&7."
+      - "&7Ekskluzywne itemy VIP."
+      - "&7Zakup za &dVIP Tokeny&7."
       - ""
-      - "&eClick to open"
+      - "&eKliknij, aby otworzy\u0107"
   order: 1
   enabled: true
-  required-permission: bellmarket.vip
+  required-permission: ""
+  default-currency: viptoken
 
 products:
 
-  # ── Example VIP products — customize for your server ──────────
-
-  vip_kit:
+  fmm_craftenmine_formula_7_sword:
     type: COMMAND
-    name: "&5VIP Starter Kit"
+    name: "&bZguba Le\u015Bnych Jag\u00F3d"
     lore:
-      - "&7A special kit for VIP members."
-      - "&7Contains exclusive gear."
+      - "&bLegendarne ostrze, kt\u00F3rego samo"
+      - "&bwezwanie budzi trwog\u0119 w g\u0105szczu."
+      - "&bNasycone sokiem dzikich bor\u00F3wek."
+      - "&8"
+      - "&7Przy trafieniu istnieje szansa,"
+      - "&7\u017Ce ostrze uwolni niestabiln\u0105"
+      - "&7energi\u0119 le\u015Bnych jag\u00F3d."
+      - "&8"
+      - "&eEfekt:"
+      - "&7- 5% szans na Bor\u00F3wkow\u0105 Eksplozj\u0119"
+      - "&7- Odrzuca pobliskich wrog\u00F3w"
+      - "&7- Podpala trafione cele"
       - ""
-      - "&dPrice: &e{price} VIP Tokens"
+      - "&dCena: &e{price} VIP Token"
       - ""
-      - "&aLeft-click &7to purchase"
+      - "&aLPM &7- kup"
     icon:
-      material: ENDER_CHEST
-    price: 10
+      material: IRON_SWORD
+      item-model: freeminecraftmodels:display/fmm_craftenmine_basic_item_pack_formula_7_sword
+    price: 1
     currency: VIPTOKEN
-    enabled: false
+    enabled: true
     commands:
-      - "give {player} diamond_sword 1"
-      - "give {player} golden_apple 5"
+      - "fmm giveitem {player} fmm_craftenmine_basic_item_pack_formula_7_sword"
 
-  vip_cosmetic:
+  fmm_craftenmine_aqua_prodder_spear:
     type: COMMAND
-    name: "&dVIP Particle Effect"
+    name: "&bWyderkowy Szpon"
     lore:
-      - "&7A cosmetic particle trail."
+      - "&bZaprojektowany przez rzeczne"
+      - "&bwydry do podwodnych \u0142ow\u00F3w."
+      - "&bTo narz\u0119dzie, nie bro\u0144."
+      - "&8"
+      - "&7Cho\u0107 doskonale przebija"
+      - "&7pancerze nieostro\u017Cnych wrog\u00F3w."
+      - "&8"
+      - "&eEfekt:"
+      - "&7- Kucnij pod wod\u0105 i u\u017Cyj PPM"
+      - "&7- Tworzy Wyderkow\u0105 Kopu\u0142\u0119"
+      - "&7- Kopu\u0142a utrzymuje si\u0119 1 minut\u0119"
       - ""
-      - "&dPrice: &e{price} VIP Tokens"
+      - "&dCena: &e{price} VIP Token"
       - ""
-      - "&aLeft-click &7to purchase"
+      - "&aLPM &7- kup"
     icon:
-      material: BLAZE_POWDER
-    price: 5
+      material: IRON_SPEAR
+      item-model: freeminecraftmodels:display/fmm_craftenmine_basic_item_pack_aqua_prodder_spear
+    price: 1
     currency: VIPTOKEN
-    enabled: false
+    enabled: true
     commands:
-      - "say {player} unlocked a VIP cosmetic!"
+      - "fmm giveitem {player} fmm_craftenmine_basic_item_pack_aqua_prodder_spear"
+
+  fmm_craftenmine_inertial_persuader_mace:
+    type: COMMAND
+    name: "&bJagodowy Mia\u017Cd\u017Cyciel"
+    lore:
+      - "&bWykorzystuje p\u0119d i le\u015Bn\u0105 magi\u0119,"
+      - "&baby przekona\u0107 wrog\u00F3w do zmiany"
+      - "&bkierunku marszu."
+      - "&8"
+      - "&7Ka\u017Cde uderzenie mo\u017Ce wyzwoli\u0107"
+      - "&7pot\u0119\u017Cne Jagodowe T\u0105pni\u0119cie."
+      - "&8"
+      - "&eEfekt:"
+      - "&7- 5% szans na Jagodowe T\u0105pni\u0119cie"
+      - "&7- Odrzuca przeciwnik\u00F3w"
+      - "&7- Tymczasowo zmniejsza potwory"
+      - ""
+      - "&dCena: &e{price} VIP Token"
+      - ""
+      - "&aLPM &7- kup"
+    icon:
+      material: MACE
+      item-model: freeminecraftmodels:display/fmm_craftenmine_basic_item_pack_inertial_persuader_mace
+    price: 1
+    currency: VIPTOKEN
+    enabled: true
+    commands:
+      - "fmm giveitem {player} fmm_craftenmine_basic_item_pack_inertial_persuader_mace"
+
+  fmm_craftenmine_velocity_mk1_bow:
+    type: COMMAND
+    name: "&bJagodowy Przyspieszacz Mk.I"
+    lore:
+      - "&bEkstremalnie przyspiesza strza\u0142y."
+      - "&bCielesna pow\u0142oka celu s\u0142u\u017Cy"
+      - "&btutaj jako jedyny hamulec."
+      - "&8"
+      - "&7Strza\u0142y nios\u0105 ze sob\u0105 toksyczne"
+      - "&7esencje le\u015Bnych jag\u00F3d."
+      - "&8"
+      - "&eEfekt:"
+      - "&7- 5% szans na Zatruty Grot"
+      - "&7- Nak\u0142ada losowy negatywny efekt"
+      - "&7- Dzia\u0142a na trafiony cel"
+      - ""
+      - "&dCena: &e{price} VIP Token"
+      - ""
+      - "&aLPM &7- kup"
+    icon:
+      material: BOW
+      item-model: freeminecraftmodels:display/fmm_craftenmine_basic_item_pack_velocity_enhancer_mk1_bow
+    price: 1
+    currency: VIPTOKEN
+    enabled: true
+    commands:
+      - "fmm giveitem {player} fmm_craftenmine_basic_item_pack_velocity_enhancer_mk1_bow"
+
+  fmm_craftenmine_velocity_mk2_crossbow:
+    type: COMMAND
+    name: "&bCier\u0144 Czarnej Jagody"
+    lore:
+      - "&bUlepszona wersja \u0142uku Mk.I,"
+      - "&bnasycona jeszcze pot\u0119\u017Cniejszym"
+      - "&ble\u015Bnym jadem."
+      - "&8"
+      - "&7Wersja Mk.III pozostaje"
+      - "&7w fazie eksperymentalnej."
+      - "&8"
+      - "&eEfekt:"
+      - "&7- 10% szans na Jagodowy Podmuch"
+      - "&7- Uwalnia spr\u0119\u017Cone ci\u015Bnienie"
+      - "&7- Pot\u0119\u017Cnie odrzuca przeciwnika"
+      - ""
+      - "&dCena: &e{price} VIP Token"
+      - ""
+      - "&aLPM &7- kup"
+    icon:
+      material: CROSSBOW
+      item-model: freeminecraftmodels:display/fmm_craftenmine_basic_item_pack_velocity_enhancer_mk2_crossbow
+    price: 1
+    currency: VIPTOKEN
+    enabled: true
+    commands:
+      - "fmm giveitem {player} fmm_craftenmine_basic_item_pack_velocity_enhancer_mk2_crossbow"

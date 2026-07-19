@@ -34,6 +34,7 @@ shop:
   page-prev: "&7← Poprzednia strona"
   page-info: "&7Strona {current}/{total}"
   out-of-stock: "&cTen przedmiot jest aktualnie niedostępny."
+  purchases-disabled: "&cZakupy w sklepie są chwilowo wyłączone."
   confirm-title: "&8Potwierdź zakup"
   confirm-yes: "&aPotwierdzam"
   confirm-no: "&cAnuluj"

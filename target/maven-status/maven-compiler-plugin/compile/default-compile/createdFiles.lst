@@ -8,6 +8,7 @@ pl\bellmarket\model\Category.class
 pl\bellmarket\gui\AdminGUI.class
 pl\bellmarket\provider\EliteMobsProvider$EMItem.class
 pl\bellmarket\gui\PriceEditorGUI$TierMeta.class
+pl\bellmarket\provider\FmmScriptedItemBridge$ScriptedItemMeta.class
 pl\bellmarket\gui\PriceEditorGUI$SkinEntry.class
 pl\bellmarket\provider\BellItemsCatalogBridge$CatalogItemMeta.class
 pl\bellmarket\event\BellMarketReloadEvent.class
@@ -48,6 +49,7 @@ pl\bellmarket\provider\FreeMinecraftModelsProvider.class
 pl\bellmarket\command\BellMarketCommand.class
 pl\bellmarket\integration\MarketAdmin$1.class
 pl\bellmarket\integration\MarketAdmin.class
+pl\bellmarket\provider\FmmScriptedItemBridge.class
 pl\bellmarket\provider\ProductProvider.class
 pl\bellmarket\config\CategoryManager$1.class
 pl\bellmarket\integration\BellHubModule.class

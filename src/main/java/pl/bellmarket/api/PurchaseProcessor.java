@@ -28,6 +28,8 @@ import pl.bellmarket.currency.Currency;
 import pl.bellmarket.event.BellMarketPurchaseEvent;
 import pl.bellmarket.model.Product;
 
+import java.util.Locale;
+
 public class PurchaseProcessor {
 
     public enum Result {
@@ -36,7 +38,8 @@ public class PurchaseProcessor {
         PRODUCT_DISABLED,    // original — used by ShopGUI directly
         DELIVERY_FAILED,     // original
         NO_PERMISSION,       // SESJA-1 addition
-        CANCELLED            // SESJA-1 addition
+        CANCELLED,           // SESJA-1 addition
+        PURCHASES_DISABLED   // shop.purchases-enabled: false
     }
 
     private final BellMarket plugin;
@@ -49,6 +52,11 @@ public class PurchaseProcessor {
         if (product == null || !product.isEnabled()) {
             playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
             return Result.PRODUCT_DISABLED;
+        }
+
+        if (!plugin.getConfig().getBoolean("shop.purchases-enabled", true)) {
+            playSound(player, "purchase-fail", Sound.ENTITY_VILLAGER_NO);
+            return Result.PURCHASES_DISABLED;
         }
 
         // SESJA-1: permission gate (covers VIP_EXCLUSIVE + any product with required-permission)
@@ -157,6 +165,23 @@ public class PurchaseProcessor {
     }
 
     private boolean deliverItem(Player player, Product product) {
+        // FMM VIP: zawsze /fmm giveitem — ta sama ścieżka co ręczny give (Lua + nazwa + lore).
+        // Własny stack z bridge bywał pusty/bez lore (ModelItemFactory nie istnieje w FMM).
+        if ("fmm".equals(product.getProviderSource())) {
+            String id = product.getId();
+            if (id != null && id.startsWith("fmmvip_")) {
+                String fmmId = id.substring("fmmvip_".length());
+                boolean dispatched = Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
+                    "fmm giveitem " + player.getName() + " " + fmmId);
+                if (!dispatched) {
+                    plugin.getLogger().warning("[FMM-VIP] Komenda giveitem nie wykonana dla " + fmmId
+                        + " (player=" + player.getName() + ")");
+                    return false;
+                }
+                return true;
+            }
+        }
+
         ItemStack stack = resolveGiveItem(product);
         if (stack == null) {
             plugin.getLogger().warning("No give-item defined for product: " + product.getId());
@@ -169,8 +194,8 @@ public class PurchaseProcessor {
     }
 
     /**
-     * BellItems products are re-built at purchase time so SkinStudio skins
-     * are always applied (category cache may predate SkinStudio enable).
+     * BellItems: przebuduj stack przy zakupie (świeży PDC).
+     * FMM VIP dostarczane przez {@link #deliverItem} → {@code /fmm giveitem}.
      */
     private ItemStack resolveGiveItem(Product product) {
         if ("bellitems".equals(product.getProviderSource())) {
@@ -207,13 +232,97 @@ public class PurchaseProcessor {
             plugin.getLogger().warning("No commands defined for product: " + product.getId());
             return false;
         }
+        boolean anyOk = false;
         for (String raw : cmds) {
+            if (raw == null || raw.isBlank()) continue;
             String filled = raw
                 .replace("{player}", player.getName())
                 .replace("{uuid}", player.getUniqueId().toString());
-            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), filled);
+
+            // FMM giveitem: tylko SenderType.PLAYER, bez argumentu nicku.
+            // Z konsoli NIGDY nie działa — dajemy stack bezpośrednio.
+            String fmmId = extractFmmGiveitemId(filled);
+            if (fmmId != null) {
+                if (giveFmmItem(player, fmmId)) {
+                    anyOk = true;
+                } else {
+                    plugin.getLogger().warning("[Purchase] FMM give failed for id=" + fmmId
+                        + " product=" + product.getId());
+                }
+                continue;
+            }
+
+            boolean ok = Bukkit.dispatchCommand(Bukkit.getConsoleSender(), filled);
+            if (!ok) {
+                plugin.getLogger().warning("[Purchase] Command failed: " + filled);
+            } else {
+                anyOk = true;
+            }
         }
-        return true;
+        return anyOk;
+    }
+
+    private boolean giveFmmItem(Player player, String fmmId) {
+        if (fmmId == null || fmmId.isBlank()) return false;
+        fmmId = fmmId.trim();
+
+        var bridge = plugin.getFmmScriptedItemBridge();
+        ItemStack stack = null;
+        if (bridge != null && bridge.isAvailable()) {
+            stack = bridge.createScriptedItem(fmmId).orElse(null);
+        }
+
+        if (stack != null && !stack.getType().isAir()) {
+            player.closeInventory();
+            var leftover = player.getInventory().addItem(stack);
+            leftover.values().forEach(s ->
+                player.getWorld().dropItemNaturally(player.getLocation(), s));
+            plugin.getLogger().info("[Purchase] FMM stack -> " + player.getName() + " id=" + fmmId
+                + " mat=" + stack.getType());
+            return true;
+        }
+
+        // Fallback: FMM giveitem wymaga sender=PLAYER (konsola nie działa)
+        plugin.getLogger().warning("[Purchase] Bridge nie zbudował stacka dla " + fmmId
+            + " — próbuję player.performCommand(fmm giveitem)");
+        player.closeInventory();
+        org.bukkit.permissions.PermissionAttachment att = null;
+        try {
+            if (!player.hasPermission("freeminecraftmodels.admin")) {
+                att = player.addAttachment(plugin);
+                att.setPermission("freeminecraftmodels.admin", true);
+                player.recalculatePermissions();
+            }
+            boolean ran = player.performCommand("fmm giveitem " + fmmId);
+            if (!ran) {
+                plugin.getLogger().warning("[Purchase] performCommand=false dla fmm giveitem " + fmmId);
+                return false;
+            }
+            plugin.getLogger().info("[Purchase] FMM via performCommand -> " + player.getName() + " id=" + fmmId);
+            return true;
+        } catch (Throwable t) {
+            plugin.getLogger().warning("[Purchase] performCommand exception: " + t.getMessage());
+            return false;
+        } finally {
+            if (att != null) {
+                player.removeAttachment(att);
+                player.recalculatePermissions();
+            }
+        }
+    }
+
+    private static String extractFmmGiveitemId(String cmd) {
+        if (cmd == null) return null;
+        String t = cmd.trim();
+        if (t.startsWith("/")) t = t.substring(1).trim();
+        String lower = t.toLowerCase(Locale.ROOT);
+        if (!lower.startsWith("fmm giveitem")) return null;
+        String rest = t.substring("fmm giveitem".length()).trim();
+        if (rest.isEmpty()) return null;
+        String[] parts = rest.split("\\s+");
+        if (parts.length == 1) return parts[0];
+        // fmm giveitem <player> <itemId> [amount]
+        return parts[1];
     }
 
     private void refund(Player player, Currency currency, long amount, String reason) {

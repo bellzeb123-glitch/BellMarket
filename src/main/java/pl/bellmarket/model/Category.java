@@ -60,6 +60,8 @@ public class Category {
     public int getOrder()               { return order; }
     public boolean isEnabled()          { return enabled; }
     public Material getIconMaterial()   { return iconMaterial; }
+    public String getIconName()         { return iconName; }
+    public List<String> getIconLore()   { return iconLore; }
     public List<Product> getProducts()  { return products; }
 
     public List<Product> getEnabledProducts() {

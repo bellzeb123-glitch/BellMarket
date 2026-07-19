@@ -92,29 +92,44 @@ public class Product {
 
         ItemMeta meta = icon.getItemMeta();
         if (meta != null) {
-            if (iconName != null && !iconName.isEmpty()) {
-                meta.displayName(colorize(iconName));
-            } else if (name != null) {
-                meta.displayName(colorize(name));
-            }
-            if (lore != null && !lore.isEmpty()) {
+            if (fromGiveItem) {
+                // Zachowaj nazwę/lore/model z prawdziwego itemu (FMM / BellItems).
+                // Dopisz tylko cenę na dole.
                 Currency cur = currency != null ? currency : Currency.BELLCOINS;
-                List<Component> resolved = new ArrayList<>();
-                for (String l : lore) {
-                    String line = l.replace("{price}", String.valueOf(price))
-                                   .replace("{currency}", cur.getDisplayName())
-                                   .replace("{symbol}", cur.getSymbol());
-                    resolved.add(colorize(line));
+                List<Component> existing = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
+                existing.add(Component.empty());
+                existing.add(colorize("&dCena: &e" + price + " " + cur.getDisplayName())
+                    .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
+                existing.add(colorize("&aLPM &7— kup")
+                    .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
+                meta.lore(existing);
+            } else {
+                if (iconName != null && !iconName.isEmpty()) {
+                    meta.displayName(colorize(iconName)
+                        .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
+                } else if (name != null) {
+                    meta.displayName(colorize(name)
+                        .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
                 }
-                meta.lore(resolved);
-            }
-            // giveItem already carries item-model / skin from the provider (BellItems, EliteMobs, …)
-            if (!fromGiveItem && iconItemModel != null && !iconItemModel.isEmpty()) {
-                try {
-                    NamespacedKey key = NamespacedKey.fromString(iconItemModel);
-                    if (key != null) meta.setItemModel(key);
-                } catch (Throwable ignored) {
-                    // older Paper without setItemModel — skip silently
+                if (lore != null && !lore.isEmpty()) {
+                    Currency cur = currency != null ? currency : Currency.BELLCOINS;
+                    List<Component> resolved = new ArrayList<>();
+                    for (String l : lore) {
+                        String line = l.replace("{price}", String.valueOf(price))
+                                       .replace("{currency}", cur.getDisplayName())
+                                       .replace("{symbol}", cur.getSymbol());
+                        resolved.add(colorize(line)
+                            .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
+                    }
+                    meta.lore(resolved);
+                }
+                if (iconItemModel != null && !iconItemModel.isEmpty()) {
+                    try {
+                        NamespacedKey key = NamespacedKey.fromString(iconItemModel);
+                        if (key != null) meta.setItemModel(key);
+                    } catch (Throwable ignored) {
+                        // older Paper without setItemModel — skip silently
+                    }
                 }
             }
             icon.setItemMeta(meta);

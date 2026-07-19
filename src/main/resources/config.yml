@@ -16,6 +16,8 @@ currency:
 
 # Shop settings
 shop:
+  # false = sklep otwarty do przeglądania, ale zakupy zablokowane
+  purchases-enabled: true
   # Title of the main shop GUI
   title: "&8✦ &6BellMarket &8✦"
   # Title of category GUIs

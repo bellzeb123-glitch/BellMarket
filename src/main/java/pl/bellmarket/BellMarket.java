@@ -48,6 +48,7 @@ public class BellMarket extends JavaPlugin {
     private ProductProviderRegistry providerRegistry;
     private pl.bellmarket.gui.AdminGUI adminGUI;
     private pl.bellmarket.provider.BellItemsCatalogBridge bellItemsCatalogBridge;
+    private pl.bellmarket.provider.FmmScriptedItemBridge fmmScriptedItemBridge;
     private Function<String, Component> titleTransformer;
     private ProFeatures proFeatures;
 
@@ -63,6 +64,7 @@ public class BellMarket extends JavaPlugin {
         saveResource("categories/01_vip.yml", false);
         saveResource("categories/07_mounts.yml", false);
         saveResource("categories/08_custom.yml", false);
+        saveResource("providers/bellitems.yml", false);
 
         this.langManager     = new LangManager(this);
         this.currencyManager = new CurrencyManager(this);
@@ -71,6 +73,7 @@ public class BellMarket extends JavaPlugin {
         this.vipTokens       = new VipTokenManager(this);
         this.providerRegistry = new ProductProviderRegistry(this);
         this.bellItemsCatalogBridge = new pl.bellmarket.provider.BellItemsCatalogBridge(this);
+        this.fmmScriptedItemBridge = new pl.bellmarket.provider.FmmScriptedItemBridge(this);
 
         // ── Built-in providers ──────────────────────────────────────────────
         providerRegistry.register(new SkinStudioProvider(this));
@@ -170,6 +173,7 @@ public class BellMarket extends JavaPlugin {
         List<Category> generated = providerRegistry.generateAll();
         categoryManager.removeProviderCategories();
         categoryManager.addProviderCategories(generated);
+        // FMM VIP: tylko ręczny categories/01_vip.yml (COMMAND + fmm giveitem). Bez auto-enrich.
 
         int total = categoryManager.getCategories().size();
         getLogger().info("Shop catalog: " + total + " categories ("
@@ -195,6 +199,9 @@ public class BellMarket extends JavaPlugin {
     public ProductProviderRegistry getProviderRegistry() { return providerRegistry; }
     public pl.bellmarket.provider.BellItemsCatalogBridge getBellItemsCatalogBridge() {
         return bellItemsCatalogBridge;
+    }
+    public pl.bellmarket.provider.FmmScriptedItemBridge getFmmScriptedItemBridge() {
+        return fmmScriptedItemBridge;
     }
     public pl.bellmarket.gui.AdminGUI getAdminGUI()       { return adminGUI; }
 

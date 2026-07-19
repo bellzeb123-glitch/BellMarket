@@ -34,6 +34,7 @@ shop:
   page-prev: "&7← Previous page"
   page-info: "&7Page {current}/{total}"
   out-of-stock: "&cThis item is currently unavailable."
+  purchases-disabled: "&cShop purchases are temporarily disabled."
   confirm-title: "&8Confirm Purchase"
   confirm-yes: "&aConfirm"
   confirm-no: "&cCancel"

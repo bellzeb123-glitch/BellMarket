@@ -21,6 +21,9 @@ import pl.bellmarket.model.Category;
 import pl.bellmarket.model.Product;
 
 import java.io.File;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -81,14 +84,34 @@ public class CategoryManager {
         plugin.getLogger().info("Manual categories loaded: " + categories.size());
     }
 
+    /**
+     * Tylko całe auto-kategorie providerów (po id).
+     * NIE kasuj VIP/manual gdy produkty mają providerSource=fmm (FMM-VIP enricher).
+     */
     private boolean isProviderCategory(Category c) {
-        if (c.getId().startsWith("skinstudio_")) return true;
-        return c.getProducts().stream()
-            .anyMatch(p -> p.getProviderSource() != null && !"manual".equals(p.getProviderSource()));
+        String id = c.getId();
+        return id.startsWith("skinstudio_")
+            || id.startsWith("elitemobs_")
+            || id.startsWith("fmm_")
+            || id.startsWith("bellitems_")
+            || id.startsWith("mythicmobs_");
+    }
+
+    /** Zamienia kategorię w pamięci (np. VIP wzbogacone o FMM). */
+    public void replaceCategory(String id, Category replacement) {
+        if (id == null || replacement == null) return;
+        for (int i = 0; i < categories.size(); i++) {
+            if (categories.get(i).getId().equals(id)) {
+                categories.set(i, replacement);
+                return;
+            }
+        }
+        categories.add(replacement);
+        categories.sort(Comparator.comparingInt(Category::getOrder));
     }
 
     private Category loadCategory(File file) {
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        YamlConfiguration config = loadYamlUtf8(file);
         ConfigurationSection cat = config.getConfigurationSection("category");
         if (cat == null) {
             plugin.getLogger().warning("No 'category' section in " + file.getName());
@@ -96,8 +119,8 @@ public class CategoryManager {
         }
 
         String id          = file.getName().replace(".yml", "");
-        String name        = cat.getString("name", id);
-        String displayName = cat.getString("display-name", name);
+        String name        = unescape(cat.getString("name", id));
+        String displayName = unescape(cat.getString("display-name", name));
         int    order       = cat.getInt("order", 0);
         boolean enabled    = cat.getBoolean("enabled", true);
 
@@ -117,8 +140,8 @@ public class CategoryManager {
             catch (IllegalArgumentException e) {
                 plugin.getLogger().warning("Invalid material: " + matName);
             }
-            iconName = iconSec.getString("name");
-            iconLore = iconSec.getStringList("lore");
+            iconName = unescape(iconSec.getString("name"));
+            iconLore = unescapeList(iconSec.getStringList("lore"));
         }
 
         List<Product> ps = new ArrayList<>();
@@ -145,8 +168,8 @@ public class CategoryManager {
         }
 
         long price = sec.getLong("price", 0L);
-        String name = sec.getString("name", productId);
-        List<String> lore = sec.getStringList("lore");
+        String name = unescape(sec.getString("name", productId));
+        List<String> lore = unescapeList(sec.getStringList("lore"));
         boolean enabled = sec.getBoolean("enabled", true);
 
         Material iconMat   = Material.PAPER;
@@ -160,7 +183,7 @@ public class CategoryManager {
                 plugin.getLogger().warning("Invalid icon material: " + matName);
             }
             iconModel   = iconSec.getString("item-model");
-            iconNameStr = iconSec.getString("name");
+            iconNameStr = unescape(iconSec.getString("name"));
         }
 
         Product.Builder builder = new Product.Builder()
@@ -205,6 +228,44 @@ public class CategoryManager {
 
         builder.providerSource("manual");
         return builder.build();
+    }
+
+    /** Load category YAML as UTF-8 (Windows default charset breaks Polish lore). */
+    private YamlConfiguration loadYamlUtf8(File file) {
+        YamlConfiguration config = new YamlConfiguration();
+        try (var reader = new InputStreamReader(Files.newInputStream(file.toPath()), StandardCharsets.UTF_8)) {
+            config.load(reader);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to load " + file.getName() + " as UTF-8: " + e.getMessage());
+            return YamlConfiguration.loadConfiguration(file);
+        }
+        return config;
+    }
+
+    /** Decode YAML unicode escapes like backslash-u + 4 hex digits. */
+    static String unescape(String s) {
+        if (s == null || s.isEmpty() || s.indexOf('\\') < 0) return s;
+        StringBuilder out = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 5 < s.length() && (s.charAt(i + 1) == 'u' || s.charAt(i + 1) == 'U')) {
+                try {
+                    int code = Integer.parseInt(s.substring(i + 2, i + 6), 16);
+                    out.append((char) code);
+                    i += 5;
+                    continue;
+                } catch (NumberFormatException ignored) {}
+            }
+            out.append(c);
+        }
+        return out.toString();
+    }
+
+    private static List<String> unescapeList(List<String> in) {
+        if (in == null || in.isEmpty()) return in == null ? List.of() : in;
+        List<String> out = new ArrayList<>(in.size());
+        for (String line : in) out.add(unescape(line));
+        return out;
     }
 
     public List<Category> getCategories() { return categories; }

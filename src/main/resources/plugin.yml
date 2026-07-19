@@ -10,6 +10,9 @@ softdepend:
   - SkinStudio
   - BellLP
   - BellHub
+  - BellItems
+  - FreeMinecraftModels
+  - BellMarketPro
 
 commands:
   bellmarket:

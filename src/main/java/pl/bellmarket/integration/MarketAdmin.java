@@ -61,7 +61,8 @@ public final class MarketAdmin {
     }
 
     public String viewSettings() {
-        return "{\"language\":\"" + esc(plugin.getConfig().getString("language", "en")) + "\"}";
+        return "{\"language\":\"" + esc(plugin.getConfig().getString("language", "en"))
+                + "\",\"purchasesEnabled\":" + plugin.getConfig().getBoolean("shop.purchases-enabled", true) + "}";
     }
 
     /** Pelny katalog: WSZYSTKIE kategorie (manualne z PLIKOW — takze wylaczone! + providerow z pamieci)
@@ -126,6 +127,7 @@ public final class MarketAdmin {
         addDisabledProviderCats(out, "skinstudio", "tiers");
         addDisabledProviderCats(out, "elitemobs", "categories");
         addDisabledProviderCats(out, "fmm", "categories");
+        addDisabledProviderCats(out, "bellitems", "categories");
         return "{\"categories\":" + arr(out) + "}";
     }
 
@@ -218,6 +220,7 @@ public final class MarketAdmin {
                 case "vip.take" -> vipAdd(a.param("player"), a.param("value"), true);
                 case "settings.language" -> setLanguage(a.param("value"));
                 case "settings.reload" -> { plugin.reload(); yield ActionResult.ok("BellMarket przeladowany."); }
+                case "settings.purchasesEnabled" -> setPurchasesEnabled("true".equalsIgnoreCase(a.param("value")));
                 case "provider.setEnabled" -> providerSetEnabled(a.param("id"), "true".equalsIgnoreCase(a.param("value")));
                 case "category.create" -> categoryCreate(a.param("id"), a.param("name"), a.param("icon"), a.param("order"), a.param("currency"));
                 case "category.setCurrency" -> categorySet(a.param("id"), "default-currency", "VIPTOKEN".equals(curName(a.param("value"))) ? "viptoken" : "bellcoins");
@@ -232,9 +235,12 @@ public final class MarketAdmin {
                 case "product.create" -> productCreate(a);
                 case "product.addExisting" -> productAddExisting(a.param("category"), a.param("source"), a.param("price"));
                 case "product.delete" -> productDelete(a.param("category"), a.param("id"));
-                case "product.setEnabled" -> productSet(a.param("category"), a.param("id"), "enabled", "true".equalsIgnoreCase(a.param("value")));
+                case "product.setEnabled" -> productSetEnabled(a.param("category"), a.param("id"), "true".equalsIgnoreCase(a.param("value")));
                 case "product.rename" -> productSet(a.param("category"), a.param("id"), "name", a.param("value"));
-                case "product.setPrice" -> productSetPrice(a.param("category"), a.param("id"), parseLong(a.param("value")));
+                case "product.setPrice" -> productSetPrice(a.param("category"), a.param("id"), parseLong(a.param("value")), true);
+                case "product.setPrices" -> productSetPrices(a.param("category"), a.param("changes"));
+                case "category.setAllPrices" -> categorySetAllPrices(a.param("id"), a.param("mode"), a.param("value"));
+                case "product.exclude" -> productExclude(a.param("category"), a.param("id"), "true".equalsIgnoreCase(a.param("value")));
                 default -> ActionResult.error("Nieznana akcja: " + a.name());
             };
         } catch (NumberFormatException e) {
@@ -274,6 +280,12 @@ public final class MarketAdmin {
         if (!"pl".equals(code) && !"en".equals(code)) return ActionResult.error("Jezyk: pl lub en.");
         plugin.getConfig().set("language", code); plugin.saveConfig(); plugin.reload();
         return ActionResult.ok("Jezyk = " + code + ".");
+    }
+
+    private ActionResult setPurchasesEnabled(boolean value) {
+        plugin.getConfig().set("shop.purchases-enabled", value);
+        plugin.saveConfig();
+        return ActionResult.ok(value ? "Zakupy wlaczone." : "Zakupy wylaczone (przegladanie OK).");
     }
 
     // ── kategorie ──
@@ -329,6 +341,7 @@ public final class MarketAdmin {
         if (catId.startsWith("skinstudio_")) return new String[]{"skinstudio.yml", "tiers." + catId.substring("skinstudio_".length())};
         if (catId.startsWith("elitemobs_")) return new String[]{"elitemobs.yml", "categories." + catId.substring("elitemobs_".length())};
         if (catId.startsWith("fmm_")) return new String[]{"fmm.yml", "categories." + catId.substring("fmm_".length())};
+        if (catId.startsWith("bellitems_")) return new String[]{"bellitems.yml", "categories." + catId.substring("bellitems_".length())};
         return null;
     }
 
@@ -441,8 +454,91 @@ public final class MarketAdmin {
         plugin.reload(); return ActionResult.ok("Produkt " + id + " zaktualizowany.");
     }
 
+    /**
+     * Wlacza/wylacza kupno produktu.
+     * Manual: categories/&lt;id&gt;.yml products.*.enabled
+     * Provider (BellItems itd.): providers/&lt;src&gt;.yml item-enabled.&lt;key&gt;
+     */
+    private ActionResult productSetEnabled(String cat, String id, boolean value) {
+        File f = catFile(sanitize(cat));
+        if (f.exists()) {
+            YamlConfiguration cfg = YamlConfiguration.loadConfiguration(f);
+            if (cfg.contains("products." + id)) {
+                cfg.set("products." + id + ".enabled", value);
+                if (!save(cfg, f)) return ActionResult.error("Blad zapisu.");
+                plugin.reload();
+                return ActionResult.ok("Produkt " + id + (value ? " wlaczony do kupna." : " wylaczony z kupna."));
+            }
+        }
+        Product p = findProduct(id);
+        if (p == null) return ActionResult.error("Nie znaleziono produktu.");
+        String source = srcOf(p);
+        String[] map = providerPriceTarget(source);
+        if (map == null) return ActionResult.error("Wylaczanie kupna nieobslugiwane dla zrodla '" + source + "'.");
+        File pf = new File(plugin.getDataFolder(), "providers/" + map[0]);
+        YamlConfiguration cfg = pf.exists() ? YamlConfiguration.loadConfiguration(pf) : new YamlConfiguration();
+        String key = id.startsWith(map[2]) ? id.substring(map[2].length()) : id;
+        cfg.set("item-enabled." + key, value);
+        // Jesli bylo w excluded-items (stary „Ukryj”), przy wlaczeniu kupna wyciagnij stamtad
+        if (value) {
+            List<String> excluded = new ArrayList<>(cfg.getStringList("excluded-items"));
+            if (excluded.remove(key)) cfg.set("excluded-items", excluded);
+        }
+        if (!save(cfg, pf)) return ActionResult.error("Blad zapisu override.");
+        plugin.reload();
+        return ActionResult.ok("Produkt " + stripColor(p.getName())
+                + (value ? " wlaczony do kupna." : " wylaczony z kupna.") + " (" + source + ")");
+    }
+
+    /**
+     * Hurtowa zmiana cen w sekcji.
+     * mode: set = wszyscy na value; multiply = cena * (value/100) gdy value jak procent (np. 110 = +10%),
+     *       albo add = cena + value.
+     */
+    private ActionResult categorySetAllPrices(String catId, String mode, String valueRaw) {
+        if (catId == null || catId.isBlank()) return ActionResult.error("Brak kategorii.");
+        Category cat = findCategory(catId);
+        if (cat == null || cat.getProducts().isEmpty()) return ActionResult.error("Pusta / nieznana kategoria.");
+        String m = mode == null ? "set" : mode.trim().toLowerCase();
+        long value = parseLong(valueRaw);
+        if ("set".equals(m) && value < 0) return ActionResult.error("Cena nie moze byc ujemna.");
+        int n = 0;
+        for (Product p : cat.getProducts()) {
+            long next = switch (m) {
+                case "multiply", "mul", "percent", "pct" -> Math.max(0L, Math.round(p.getPrice() * (value / 100.0)));
+                case "add" -> Math.max(0L, p.getPrice() + value);
+                default -> value; // set
+            };
+            ActionResult r = productSetPrice(catId, p.getId(), next, false);
+            if (!r.ok()) return r;
+            n++;
+        }
+        plugin.reload();
+        return ActionResult.ok("Zaktualizowano ceny " + n + " produktow w „" + catId + "” (" + m + ").");
+    }
+
+    /** Zapis wielu cen naraz. Format changes: id:cena|id:cena|... */
+    private ActionResult productSetPrices(String cat, String changesRaw) {
+        if (changesRaw == null || changesRaw.isBlank()) return ActionResult.error("Brak zmian do zapisu.");
+        int n = 0;
+        for (String part : changesRaw.split("\\|")) {
+            String s = part.trim();
+            if (s.isEmpty()) continue;
+            int colon = s.lastIndexOf(':');
+            if (colon <= 0) return ActionResult.error("Zly format changes (oczekiwano id:cena|...).");
+            String id = s.substring(0, colon).trim();
+            long price = parseLong(s.substring(colon + 1));
+            ActionResult r = productSetPrice(cat, id, price, false);
+            if (!r.ok()) return r;
+            n++;
+        }
+        if (n == 0) return ActionResult.error("Brak zmian do zapisu.");
+        plugin.reload();
+        return ActionResult.ok("Zapisano " + n + " cen.");
+    }
+
     /** Cena uniwersalna: manualny produkt -> YAML kategorii; produkt providera -> override providers/&lt;src&gt;.yml. */
-    private ActionResult productSetPrice(String cat, String id, long price) {
+    private ActionResult productSetPrice(String cat, String id, long price, boolean reload) {
         if (price < 0) return ActionResult.error("Cena nie moze byc ujemna.");
         // manualny?
         File f = catFile(sanitize(cat));
@@ -451,7 +547,8 @@ public final class MarketAdmin {
             if (cfg.contains("products." + id)) {
                 cfg.set("products." + id + ".price", price);
                 if (!save(cfg, f)) return ActionResult.error("Blad zapisu.");
-                plugin.reload(); return ActionResult.ok("Cena " + id + " = " + price + ".");
+                if (reload) plugin.reload();
+                return ActionResult.ok("Cena " + id + " = " + price + ".");
             }
         }
         // produkt providera -> override w providers/<source>.yml
@@ -465,8 +562,33 @@ public final class MarketAdmin {
         String key = id.startsWith(map[2]) ? id.substring(map[2].length()) : id;
         cfg.set(map[1] + "." + key, price);
         if (!save(cfg, pf)) return ActionResult.error("Blad zapisu override.");
-        plugin.reload();
+        if (reload) plugin.reload();
         return ActionResult.ok("Cena " + stripColor(p.getName()) + " = " + price + " (override " + source + ").");
+    }
+
+    /** Wylacza produkt providera (dodaje do excluded-items) albo wlacza z powrotem. */
+    private ActionResult productExclude(String cat, String id, boolean exclude) {
+        Product p = findProduct(id);
+        if (p == null) return ActionResult.error("Nie znaleziono produktu.");
+        String source = srcOf(p);
+        if ("manual".equals(source)) {
+            return productSet(cat, id, "enabled", !exclude);
+        }
+        String[] map = providerPriceTarget(source);
+        if (map == null) return ActionResult.error("Exclude nieobslugiwane dla zrodla '" + source + "'.");
+        File pf = new File(plugin.getDataFolder(), "providers/" + map[0]);
+        YamlConfiguration cfg = pf.exists() ? YamlConfiguration.loadConfiguration(pf) : new YamlConfiguration();
+        String key = id.startsWith(map[2]) ? id.substring(map[2].length()) : id;
+        List<String> excluded = new ArrayList<>(cfg.getStringList("excluded-items"));
+        if (exclude) {
+            if (!excluded.contains(key)) excluded.add(key);
+        } else {
+            excluded.remove(key);
+        }
+        cfg.set("excluded-items", excluded);
+        if (!save(cfg, pf)) return ActionResult.error("Blad zapisu.");
+        plugin.reload();
+        return ActionResult.ok(exclude ? ("Ukryto " + key + " w sklepie.") : ("Przywrocono " + key + " do sklepu."));
     }
 
     private String[] providerPriceTarget(String source) {
@@ -474,11 +596,18 @@ public final class MarketAdmin {
             case "skinstudio" -> new String[]{"skinstudio.yml", "skin-prices", "skinstudio_"};
             case "elitemobs" -> new String[]{"elitemobs.yml", "item-prices", "elitemobs_"};
             case "fmm" -> new String[]{"fmm.yml", "model-prices", "fmm_"};
+            case "bellitems" -> new String[]{"bellitems.yml", "item-prices", "bellitems_"};
             default -> null;
         };
     }
 
     // ── helpers ──
+    private Category findCategory(String id) {
+        if (id == null) return null;
+        for (Category c : plugin.getCategories().getCategories())
+            if (c.getId().equals(id)) return c;
+        return null;
+    }
     private Product findProduct(String id) {
         for (Category c : plugin.getCategories().getCategories())
             for (Product p : c.getProducts())

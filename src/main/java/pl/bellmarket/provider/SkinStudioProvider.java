@@ -125,6 +125,11 @@ public class SkinStudioProvider implements ProductProvider {
                 plugin.getLogger().info("[SkinStudioProvider] Tier '" + tier + "' disabled in skinstudio.yml, skipping");
                 continue;
             }
+            // Craftenmine: prawdziwe bronie FMM są w ręcznym VIP (01_vip.yml), nie jako skiny.
+            if ("craftenmine".equalsIgnoreCase(tier)) {
+                plugin.getLogger().info("[SkinStudioProvider] Tier 'craftenmine' ukryty — sprzedaż w VIP.");
+                continue;
+            }
 
             long tierDefaultPrice = tierCfg != null
                 ? tierCfg.getLong("default-price", globalDefault)
